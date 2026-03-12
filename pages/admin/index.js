@@ -9,10 +9,14 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 )
 
+// Security: restrict access to authorised email only
+// Only this email address may request a magic link or access the admin panel
+const ALLOWED_EMAIL = 'namos.dev@gmail.com'
+
 export default function AdminLogin() {
   const router  = useRouter()
   const [email, setEmail]   = useState('')
-  const [status, setStatus] = useState(null) // null | 'loading' | 'sent' | 'error'
+  const [status, setStatus] = useState(null) // null | 'loading' | 'sent' | 'error' | 'unauthorized'
 
   // ── If user is already logged in, redirect straight to dashboard ──
   useEffect(() => {
@@ -25,6 +29,13 @@ export default function AdminLogin() {
   async function handleSubmit(e) {
     e.preventDefault()
     if (!email.includes('@')) return
+
+    // Security: restrict access to authorised email only
+    // Block the request entirely — do NOT contact Supabase for unauthorised emails
+    if (email.toLowerCase() !== ALLOWED_EMAIL.toLowerCase()) {
+      setStatus('unauthorized')
+      return
+    }
 
     setStatus('loading')
     try {
@@ -149,7 +160,14 @@ export default function AdminLogin() {
                 />
               </div>
 
-              {/* Error message */}
+              {/* Unauthorized email error */}
+              {status === 'unauthorized' && (
+                <p style={{ fontSize: 13, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px' }}>
+                  🚫 Access restricted. Unauthorised email.
+                </p>
+              )}
+
+              {/* Generic Supabase / network error */}
               {status === 'error' && (
                 <p style={{ fontSize: 13, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px' }}>
                   ⚠️ Something went wrong. Check your Supabase config and try again.

@@ -1,7 +1,16 @@
 import Layout from '../components/Layout'
 import Link from 'next/link'
+import { createClient } from '@supabase/supabase-js'
 
-const stack = [
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  This page now reads content from Supabase (`stack_items`). ║
+// ║  Add/edit items via the admin panel.                        ║
+// ║  If Supabase is unreachable, hardcoded fallback is shown.   ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ── Hardcoded fallback: stack tools ──
+// Used when Supabase is unreachable and stackItems prop is null.
+const FALLBACK_STACK = [
   {
     name: 'Claude',
     role: 'AI Thinking Partner & Builder',
@@ -52,7 +61,8 @@ const stack = [
   },
 ]
 
-const lessons = [
+// ── Hardcoded fallback: lessons ──
+const FALLBACK_LESSONS = [
   {
     title: 'Prompting is a skill, not a shortcut',
     body: 'The quality of AI output is entirely a function of how well you describe the problem. "Make a button" and "Make a primary call-to-action button in sage green that scales on hover with a subtle shadow" produce wildly different results. Investment in learning to prompt = compound returns.',
@@ -79,28 +89,67 @@ const lessons = [
   },
 ]
 
-const experiments = [
+// ── Experiments section is always hardcoded (not in DB schema) ──
+const EXPERIMENTS = [
   { name: 'Personal Website v1', desc: 'Single HTML landing page. Form connected to Supabase.', status: 'Shipped', link: null },
   { name: 'Personal Website v2', desc: 'Full multi-page Next.js site. This site.', status: 'Live', link: null },
   { name: 'Meeting Request Form', desc: 'Supabase table → RLS policy → live form. Responses in database.', status: 'Live', link: '/connect' },
   { name: 'Substack RSS Mirror', desc: 'Auto-fetching Substack posts and displaying them in custom design via RSS2JSON.', status: 'Live', link: '/thoughts' },
 ]
 
-export default function Stack() {
+// ── Page component ──
+// `stackItems` is an array from Supabase (or null if fetch failed).
+// When non-null, items are grouped by category and rendered in the
+// appropriate sections. When null, the hardcoded fallback is shown.
+export default function Stack({ stackItems }) {
+
+  // ── Build grouped data from DB items (if available) ──
+  // Groups stack_items rows by their `category` field.
+  // Expected categories: "tools" and "lessons" (case-insensitive).
+  let dbTools   = null
+  let dbLessons = null
+
+  if (stackItems && stackItems.length > 0) {
+    // Group rows by category
+    const grouped = {}
+    stackItems.forEach(item => {
+      const cat = (item.category || '').toLowerCase()
+      if (!grouped[cat]) grouped[cat] = []
+      grouped[cat].push(item)
+    })
+
+    // Map "tools" category to tool cards
+    if (grouped['tools'] && grouped['tools'].length > 0) {
+      dbTools = grouped['tools']
+    }
+
+    // Map "lessons" category to lesson cards
+    if (grouped['lessons'] && grouped['lessons'].length > 0) {
+      dbLessons = grouped['lessons']
+    }
+  }
+
+  // Decide what to render for each section:
+  // - Use DB data if available for that category
+  // - Fall back to hardcoded if not
+  const toolsToRender   = dbTools   || null   // null → use hardcoded section
+  const lessonsToRender = dbLessons || null   // null → use hardcoded section
+  const useFallback     = !toolsToRender && !lessonsToRender
+
   return (
     <Layout title="Stack" description="How Navin Oswal builds — tools, learnings, and honest notes from a non-coder building with AI.">
 
       <div className="page-header">
         <div className="wrap">
           <p className="eyebrow reveal">How I Build</p>
-          <h1 className="sec-h reveal" style={{ fontSize:'clamp(42px,5vw,72px)' }}>
+          <h1 className="sec-h reveal" style={{ fontSize: 'clamp(42px,5vw,72px)' }}>
             The Stack.
           </h1>
           <p className="sec-p reveal">
             A non-coder&apos;s toolkit for building real products. Honest notes on what works,
             what surprised me, and what I&apos;d do differently. Not a tutorial — a practitioner&apos;s log.
           </p>
-          <div className="reveal" style={{ marginTop:20 }}>
+          <div className="reveal" style={{ marginTop: 20 }}>
             <span className="chip chip-sage">~6 months of AI-assisted building</span>
           </div>
         </div>
@@ -110,62 +159,106 @@ export default function Stack() {
       <section className="section">
         <div className="wrap">
           <p className="eyebrow reveal">The Tools</p>
-          <h2 className="sec-h reveal" style={{ fontSize:36 }}>Six tools. One workflow.</h2>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:20, marginTop:40 }}>
-            {stack.map((tool, i) => (
-              <div key={i} className="glass reveal" style={{ padding:'32px 28px', position:'relative', overflow:'hidden', transition:'all 0.3s' }}
-                onMouseEnter={e => { e.currentTarget.style.transform='translateY(-4px)'; e.currentTarget.style.boxShadow='var(--g-shadow-lg)' }}
-                onMouseLeave={e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow='' }}>
-                <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:tool.color === '#000' ? 'var(--text)' : tool.color, opacity:0.5 }}/>
 
-                <div style={{ display:'flex', gap:14, alignItems:'flex-start', marginBottom:16 }}>
-                  <div style={{ fontSize:32 }}>{tool.icon}</div>
-                  <div>
-                    <h3 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:24, fontWeight:600 }}>{tool.name}</h3>
-                    <div style={{ fontFamily:'JetBrains Mono, monospace', fontSize:10, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--text-muted)' }}>{tool.role}</div>
+          {/* DB-driven tools rendering */}
+          {toolsToRender ? (
+            <>
+              <h2 className="sec-h reveal" style={{ fontSize: 36 }}>
+                {toolsToRender.length} tool{toolsToRender.length !== 1 ? 's' : ''}. One workflow.
+              </h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 20, marginTop: 40 }}>
+                {toolsToRender.map((item, i) => (
+                  <div key={i} className="glass reveal" style={{ padding: '32px 28px', position: 'relative', overflow: 'hidden', transition: 'all 0.3s' }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--g-shadow-lg)' }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}>
+                    {/* Top accent line in sage colour */}
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'var(--sage)', opacity: 0.5 }} />
+
+                    <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 16 }}>
+                      <div>
+                        {/* tool_name maps to the tool heading */}
+                        <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 24, fontWeight: 600 }}>{item.tool_name}</h3>
+                        {/* description is the main "what it does" text */}
+                        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                          Tool #{i + 1}
+                        </div>
+                      </div>
+                    </div>
+
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 14 }}>{item.description}</p>
+
+                    {/* lesson maps to "how I actually use it" */}
+                    {item.lesson && (
+                      <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(45,106,79,0.05)', borderLeft: '3px solid var(--sage)' }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--sage)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>How I actually use it</div>
+                        <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.65 }}>{item.lesson}</p>
+                      </div>
+                    )}
                   </div>
-                </div>
-
-                <p style={{ fontSize:13, color:'var(--text-muted)', lineHeight:1.7, marginBottom:14 }}>{tool.what}</p>
-
-                <div style={{ padding:'12px 16px', borderRadius:10, background:'rgba(45,106,79,0.05)', borderLeft:'3px solid var(--sage)' }}>
-                  <div style={{ fontSize:10, fontWeight:700, color:'var(--sage)', letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:4 }}>How I actually use it</div>
-                  <p style={{ fontSize:12, color:'var(--text-muted)', lineHeight:1.65 }}>{tool.howIUseIt}</p>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            /* Hardcoded fallback tools */
+            <>
+              <h2 className="sec-h reveal" style={{ fontSize: 36 }}>Six tools. One workflow.</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 20, marginTop: 40 }}>
+                {FALLBACK_STACK.map((tool, i) => (
+                  <div key={i} className="glass reveal" style={{ padding: '32px 28px', position: 'relative', overflow: 'hidden', transition: 'all 0.3s' }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--g-shadow-lg)' }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: tool.color === '#000' ? 'var(--text)' : tool.color, opacity: 0.5 }} />
+
+                    <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 16 }}>
+                      <div style={{ fontSize: 32 }}>{tool.icon}</div>
+                      <div>
+                        <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 24, fontWeight: 600 }}>{tool.name}</h3>
+                        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{tool.role}</div>
+                      </div>
+                    </div>
+
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 14 }}>{tool.what}</p>
+
+                    <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(45,106,79,0.05)', borderLeft: '3px solid var(--sage)' }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--sage)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>How I actually use it</div>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.65 }}>{tool.howIUseIt}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </section>
 
-      {/* ── HOW THEY CONNECT ── */}
-      <section className="section" style={{ paddingTop:0 }}>
+      {/* ── HOW THEY CONNECT — always hardcoded, no DB equivalent ── */}
+      <section className="section" style={{ paddingTop: 0 }}>
         <div className="wrap">
           <p className="eyebrow reveal">The Workflow</p>
-          <h2 className="sec-h reveal" style={{ fontSize:36 }}>How it all connects.</h2>
-          <div className="glass reveal" style={{ padding:'40px 48px', marginTop:36 }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:0, flexWrap:'wrap' }}>
+          <h2 className="sec-h reveal" style={{ fontSize: 36 }}>How it all connects.</h2>
+          <div className="glass reveal" style={{ padding: '40px 48px', marginTop: 36 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, flexWrap: 'wrap' }}>
               {[
-                { icon:'🧠', label:'Claude', sub:'Think & design' },
-                { arrow:'→' },
-                { icon:'✍️', label:'Write code', sub:'Files created' },
-                { arrow:'→' },
-                { icon:'🐙', label:'GitHub', sub:'Push & store' },
-                { arrow:'→' },
-                { icon:'🚀', label:'Vercel', sub:'Auto-deploy' },
-                { arrow:'→' },
-                { icon:'🌐', label:'Live site', sub:'In ~30 seconds' },
+                { icon: '🧠', label: 'Claude',    sub: 'Think & design' },
+                { arrow: '→' },
+                { icon: '✍️', label: 'Write code', sub: 'Files created' },
+                { arrow: '→' },
+                { icon: '🐙', label: 'GitHub',    sub: 'Push & store' },
+                { arrow: '→' },
+                { icon: '🚀', label: 'Vercel',    sub: 'Auto-deploy' },
+                { arrow: '→' },
+                { icon: '🌐', label: 'Live site', sub: 'In ~30 seconds' },
               ].map((item, i) => item.arrow ? (
-                <div key={i} style={{ fontSize:20, color:'var(--sage)', padding:'0 12px', fontWeight:300 }}>{item.arrow}</div>
+                <div key={i} style={{ fontSize: 20, color: 'var(--sage)', padding: '0 12px', fontWeight: 300 }}>{item.arrow}</div>
               ) : (
-                <div key={i} style={{ textAlign:'center', padding:'8px 20px' }}>
-                  <div style={{ fontSize:28, marginBottom:4 }}>{item.icon}</div>
-                  <div style={{ fontSize:13, fontWeight:600 }}>{item.label}</div>
-                  <div style={{ fontSize:11, color:'var(--text-muted)' }}>{item.sub}</div>
+                <div key={i} style={{ textAlign: 'center', padding: '8px 20px' }}>
+                  <div style={{ fontSize: 28, marginBottom: 4 }}>{item.icon}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{item.label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.sub}</div>
                 </div>
               ))}
             </div>
-            <div style={{ borderTop:'1px solid rgba(45,106,79,0.1)', marginTop:32, paddingTop:20, fontSize:13, color:'var(--text-muted)', lineHeight:1.7, textAlign:'center' }}>
+            <div style={{ borderTop: '1px solid rgba(45,106,79,0.1)', marginTop: 32, paddingTop: 20, fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7, textAlign: 'center' }}>
               Supabase sits separately — connected via URL + publishable key. Any page that needs to store or retrieve data talks to it directly.
               No server. No backend code to maintain. Just a database URL in the config.
             </div>
@@ -174,42 +267,74 @@ export default function Stack() {
       </section>
 
       {/* ── LESSONS ── */}
-      <section className="section" style={{ paddingTop:0 }}>
+      <section className="section" style={{ paddingTop: 0 }}>
         <div className="wrap">
           <p className="eyebrow reveal">Honest Lessons</p>
-          <h2 className="sec-h reveal" style={{ fontSize:36 }}>What actually surprised me.</h2>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:16, marginTop:36 }}>
-            {lessons.map((l, i) => (
-              <div key={i} className="glass reveal" style={{ padding:'28px 24px', transition:'all 0.3s' }}
-                onMouseEnter={e => e.currentTarget.style.transform='translateY(-3px)'}
-                onMouseLeave={e => e.currentTarget.style.transform=''}>
-                <div style={{ fontFamily:'JetBrains Mono, monospace', fontSize:9, letterSpacing:'0.2em', textTransform:'uppercase', color:'var(--amber)', marginBottom:10 }}>Lesson {i+1}</div>
-                <h3 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:19, fontWeight:600, marginBottom:10 }}>{l.title}</h3>
-                <p style={{ fontSize:13, color:'var(--text-muted)', lineHeight:1.7 }}>{l.body}</p>
+
+          {/* DB-driven lessons rendering */}
+          {lessonsToRender ? (
+            <>
+              <h2 className="sec-h reveal" style={{ fontSize: 36 }}>What actually surprised me.</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16, marginTop: 36 }}>
+                {lessonsToRender.map((item, i) => (
+                  <div key={i} className="glass reveal" style={{ padding: '28px 24px', transition: 'all 0.3s' }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-3px)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = ''}>
+                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: 10 }}>
+                      Lesson {i + 1}
+                    </div>
+                    {/* tool_name is the lesson title for this category */}
+                    <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 19, fontWeight: 600, marginBottom: 10 }}>{item.tool_name}</h3>
+                    {/* description is the lesson body */}
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>{item.description}</p>
+                    {/* lesson field provides additional context if present */}
+                    {item.lesson && (
+                      <p style={{ fontSize: 12, color: 'var(--sage)', lineHeight: 1.65, marginTop: 10, fontStyle: 'italic' }}>{item.lesson}</p>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            /* Hardcoded fallback lessons */
+            <>
+              <h2 className="sec-h reveal" style={{ fontSize: 36 }}>What actually surprised me.</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16, marginTop: 36 }}>
+                {FALLBACK_LESSONS.map((l, i) => (
+                  <div key={i} className="glass reveal" style={{ padding: '28px 24px', transition: 'all 0.3s' }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-3px)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = ''}>
+                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: 10 }}>Lesson {i + 1}</div>
+                    <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 19, fontWeight: 600, marginBottom: 10 }}>{l.title}</h3>
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>{l.body}</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </section>
 
-      {/* ── EXPERIMENTS ── */}
-      <section className="section" style={{ paddingTop:0 }}>
+      {/* ── EXPERIMENTS — always hardcoded ── */}
+      <section className="section" style={{ paddingTop: 0 }}>
         <div className="wrap">
           <p className="eyebrow reveal">What I&apos;ve Built</p>
-          <h2 className="sec-h reveal" style={{ fontSize:36 }}>Experiments from the playground.</h2>
-          <div style={{ display:'flex', flexDirection:'column', gap:12, marginTop:36 }}>
-            {experiments.map((exp, i) => (
-              <div key={i} className="glass reveal" style={{ padding:'20px 28px', display:'flex', alignItems:'center', gap:16, flexWrap:'wrap', transition:'all 0.3s' }}
-                onMouseEnter={e => e.currentTarget.style.transform='translateX(4px)'}
-                onMouseLeave={e => e.currentTarget.style.transform=''}>
-                <div style={{ width:8, height:8, borderRadius:'50%', background: exp.status==='Live' ? 'var(--sage)' : 'var(--amber)', flexShrink:0, animation:'pulse 2s infinite' }}/>
-                <div style={{ flex:1 }}>
-                  <span style={{ fontWeight:600, marginRight:10 }}>{exp.name}</span>
-                  <span style={{ fontSize:13, color:'var(--text-muted)' }}>{exp.desc}</span>
+          <h2 className="sec-h reveal" style={{ fontSize: 36 }}>Experiments from the playground.</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 36 }}>
+            {EXPERIMENTS.map((exp, i) => (
+              <div key={i} className="glass reveal" style={{ padding: '20px 28px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', transition: 'all 0.3s' }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateX(4px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = ''}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: exp.status === 'Live' ? 'var(--sage)' : 'var(--amber)', flexShrink: 0, animation: 'pulse 2s infinite' }} />
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontWeight: 600, marginRight: 10 }}>{exp.name}</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{exp.desc}</span>
                 </div>
-                <span style={{ fontSize:11, padding:'3px 12px', borderRadius:100,
-                  background: exp.status==='Live' ? 'rgba(45,106,79,0.1)' : 'rgba(180,83,9,0.1)',
-                  color: exp.status==='Live' ? 'var(--sage)' : 'var(--amber)', fontWeight:600 }}>
+                <span style={{
+                  fontSize: 11, padding: '3px 12px', borderRadius: 100,
+                  background: exp.status === 'Live' ? 'rgba(45,106,79,0.1)' : 'rgba(180,83,9,0.1)',
+                  color: exp.status === 'Live' ? 'var(--sage)' : 'var(--amber)', fontWeight: 600,
+                }}>
                   {exp.status}
                 </span>
               </div>
@@ -221,14 +346,14 @@ export default function Stack() {
       {/* ── CTA ── */}
       <section className="section-sm">
         <div className="wrap">
-          <div className="glass reveal" style={{ padding:'44px 52px', display:'flex', gap:32, alignItems:'center', flexWrap:'wrap', justifyContent:'space-between' }}>
+          <div className="glass reveal" style={{ padding: '44px 52px', display: 'flex', gap: 32, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
             <div>
-              <h3 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:28, fontWeight:600, marginBottom:8 }}>
+              <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 28, fontWeight: 600, marginBottom: 8 }}>
                 Curious about the process?
               </h3>
-              <p style={{ fontSize:14, color:'var(--text-muted)' }}>I write about building here — in the context of a non-coder founder navigating the AI engineering world.</p>
+              <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>I write about building here — in the context of a non-coder founder navigating the AI engineering world.</p>
             </div>
-            <div style={{ display:'flex', gap:12, flexWrap:'wrap', flexShrink:0 }}>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
               <Link href="/thoughts" className="btn-primary">Read my thoughts →</Link>
               <Link href="/connect" className="btn-ghost">Let&apos;s talk ☕</Link>
             </div>
@@ -244,4 +369,39 @@ export default function Stack() {
       `}</style>
     </Layout>
   )
+}
+
+// ── Server-side data fetching ──
+// Runs on every request so stack content is always fresh.
+// Fetches all rows from `stack_items` ordered by display_order.
+// Items are grouped by `category` in the component above:
+//   - category = "tools"   → rendered in The Tools section
+//   - category = "lessons" → rendered in the Lessons section
+// If fetch fails, `stackItems` is null and hardcoded fallback renders.
+export async function getServerSideProps() {
+  try {
+    // Create Supabase client using env vars (never hardcode keys)
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+
+    // Fetch all stack items ordered by display_order ascending
+    // (within each category, display_order controls the card sequence)
+    const { data, error } = await supabase
+      .from('stack_items')
+      .select('category, tool_name, description, lesson, display_order')
+      .order('display_order', { ascending: true })
+
+    // If Supabase errored or table is empty, use hardcoded fallback
+    if (error || !data || data.length === 0) {
+      return { props: { stackItems: null } }
+    }
+
+    return { props: { stackItems: data } }
+  } catch (err) {
+    // Catch any unexpected errors and fall back gracefully
+    console.error('[stack.js] Supabase fetch failed, using fallback:', err.message)
+    return { props: { stackItems: null } }
+  }
 }

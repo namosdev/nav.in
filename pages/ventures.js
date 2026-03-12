@@ -1,15 +1,202 @@
 import Layout from '../components/Layout'
 import Image from 'next/image'
 import Link from 'next/link'
+import { createClient } from '@supabase/supabase-js'
 
-export default function Ventures() {
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  This page now reads ventures from Supabase (`ventures`).   ║
+// ║  Add/edit ventures via the admin panel.                     ║
+// ║  If Supabase is unreachable, hardcoded fallback is shown.   ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ── Status badge config ──
+// Maps the `status` field value to display label and colours.
+const statusConfig = {
+  active:    { label: 'Live & Active',      dot: '#52b788', bg: 'rgba(0,200,170,0.12)',   color: '#52b788',  border: 'rgba(0,200,170,0.2)' },
+  launching: { label: 'Going Live Soon 🚀', dot: '#fbbf24', bg: 'rgba(30,80,200,0.15)',  color: '#93c5fd',  border: 'rgba(30,80,200,0.25)' },
+  paused:    { label: 'On Hold',            dot: '#94a3b8', bg: 'rgba(100,116,139,0.12)', color: '#94a3b8', border: 'rgba(100,116,139,0.2)' },
+}
+
+// ── DB-driven venture card ──
+// Renders a single venture fetched from Supabase.
+// Design mirrors the existing dark-card aesthetic of the hardcoded version.
+function VentureCard({ venture }) {
+  const s = statusConfig[venture.status] || statusConfig.active
+
+  // Choose accent colour for button based on status
+  const btnBg    = venture.status === 'launching' ? '#1e50c8' : '#00c8aa'
+  const btnColor = venture.status === 'launching' ? 'white'   : '#0a1f1a'
+
+  // Background gradient — alternate between UNITS green-dark and UNIVEN blue-dark
+  // based on display_order: even rows use green, odd rows use blue
+  const cardBg = (venture.display_order % 2 === 1)
+    ? 'linear-gradient(135deg, #0d1a18 0%, #0a1f1a 100%)'
+    : 'linear-gradient(135deg, #060c1a 0%, #0a0f22 100%)'
+
+  const glowColor = (venture.display_order % 2 === 1)
+    ? 'rgba(0,200,170,0.08)'
+    : 'rgba(30,80,200,0.1)'
+
+  return (
+    <section className="section">
+      <div className="wrap">
+        <div className="reveal" style={{
+          background: cardBg,
+          borderRadius: 28, padding: '52px 56px',
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'center',
+          marginBottom: 24, position: 'relative', overflow: 'hidden',
+        }}>
+          {/* Decorative background glow blob */}
+          <div style={{
+            position: 'absolute', top: -60, right: -60, width: 300, height: 300,
+            borderRadius: '50%', background: glowColor,
+            filter: 'blur(60px)', pointerEvents: 'none',
+          }} />
+
+          {/* Left column: logo, heading, tagline, buttons */}
+          <div>
+            {/* Logo — served from /public/logos/ via Next.js Image */}
+            {venture.logo_url && (
+              <div style={{ marginBottom: 32, display: 'inline-block', background: '#000', borderRadius: 16, padding: 16 }}>
+                <Image
+                  src={venture.logo_url}
+                  alt={venture.name}
+                  width={220}
+                  height={90}
+                  style={{ objectFit: 'contain' }}
+                />
+              </div>
+            )}
+
+            {/* Tagline eyebrow label */}
+            <div style={{
+              fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.2em',
+              textTransform: 'uppercase', color: s.color, marginBottom: 8,
+            }}>
+              {venture.tagline}
+            </div>
+
+            {/* Venture name as large display heading */}
+            <h2 style={{
+              fontFamily: 'Cormorant Garamond, serif', fontSize: 48,
+              fontWeight: 600, color: 'white', lineHeight: 1.0, marginBottom: 8,
+            }}>
+              {venture.name}
+            </h2>
+
+            {/* Description paragraph */}
+            {venture.description && (
+              <p style={{
+                fontFamily: 'Cormorant Garamond, serif', fontSize: 18,
+                fontStyle: 'italic', color: 'rgba(255,255,255,0.55)', marginBottom: 24,
+              }}>
+                {venture.description}
+              </p>
+            )}
+
+            {/* Action buttons: visit site + status badge */}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              {venture.website_url && (
+                <a href={venture.website_url} target="_blank" rel="noopener" style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  background: btnBg, color: btnColor,
+                  padding: '12px 24px', borderRadius: 100,
+                  fontSize: 14, fontWeight: 700, textDecoration: 'none',
+                  transition: 'all 0.25s',
+                }}>
+                  Visit {venture.website_url.replace('https://', '').replace('http://', '')} ↗
+                </a>
+              )}
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: s.bg, color: s.color,
+                padding: '12px 24px', borderRadius: 100, fontSize: 13, fontWeight: 600,
+                border: `1px solid ${s.border}`,
+              }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: s.dot, animation: 'pulse 2s infinite', display: 'inline-block' }} />
+                {s.label}
+              </div>
+            </div>
+          </div>
+
+          {/* Right column: empty — space preserved to match layout grid */}
+          <div />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ── Page component ──
+// `ventures` prop is an array from Supabase, or null if the fetch failed.
+// When null, the original hardcoded two-venture layout is rendered instead.
+export default function Ventures({ ventures }) {
+
+  // ── DB-driven path ──
+  // If Supabase returned ventures, render them using VentureCard.
+  if (ventures && ventures.length > 0) {
+    return (
+      <Layout title="Ventures" description="UNITS — sales made simple. UNIVEN — redefining trust in the Connected Business Ecosystem.">
+
+        <div className="page-header">
+          <div className="wrap">
+            <p className="eyebrow reveal">Current Ventures</p>
+            <h1 className="sec-h reveal" style={{ fontSize: 'clamp(42px,5vw,72px)' }}>
+              Two bets on the future<br />of trust and real estate.
+            </h1>
+            <p className="sec-p reveal">
+              Built from a decade of watching what doesn&apos;t work — and finally having
+              the decisiveness to build what will. Same mission as always.
+              Different builder.
+            </p>
+          </div>
+        </div>
+
+        {/* Render each venture from the database */}
+        {ventures.map((v) => (
+          <VentureCard key={v.name} venture={v} />
+        ))}
+
+        {/* ── THE COMMON THREAD ── */}
+        <section className="section-sm">
+          <div className="wrap">
+            <div className="glass reveal" style={{ padding: '52px 60px', textAlign: 'center', background: 'linear-gradient(135deg,rgba(45,106,79,0.05),rgba(30,58,95,0.05))' }}>
+              <p className="eyebrow" style={{ justifyContent: 'center' }}>The Common Thread</p>
+              <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(26px,3vw,40px)', fontWeight: 600, marginBottom: 16, lineHeight: 1.2 }}>
+                Making life easier for businesses in India<br />using technology.
+              </h3>
+              <p style={{ fontSize: 15, color: 'var(--text-muted)', maxWidth: 580, margin: '0 auto 32px', lineHeight: 1.75 }}>
+                This mission hasn&apos;t changed since the first attempt. UNITS does it for real estate sales teams.
+                UNIVEN does it for every business that needs to be trusted. Different markets. Same mission.
+              </p>
+              <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Link href="/about" className="btn-ghost">Read the full story →</Link>
+                <Link href="/connect" className="btn-primary">Let&apos;s talk ☕</Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <style>{`
+          @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
+          @media(max-width:860px){
+            div[style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr!important;}
+            div[style*="grid-template-columns: repeat(3"]{grid-template-columns:1fr!important;}
+          }
+        `}</style>
+      </Layout>
+    )
+  }
+
+  // ── Fallback path ──
+  // Supabase fetch failed or returned no rows — render the original hardcoded content.
   return (
     <Layout title="Ventures" description="UNITS — sales made simple. UNIVEN — redefining trust in the Connected Business Ecosystem.">
 
       <div className="page-header">
         <div className="wrap">
           <p className="eyebrow reveal">Current Ventures</p>
-          <h1 className="sec-h reveal" style={{ fontSize:'clamp(42px,5vw,72px)' }}>
+          <h1 className="sec-h reveal" style={{ fontSize: 'clamp(42px,5vw,72px)' }}>
             Two bets on the future<br/>of trust and real estate.
           </h1>
           <p className="sec-p reveal">
@@ -233,4 +420,36 @@ export default function Ventures() {
       `}</style>
     </Layout>
   )
+}
+
+// ── Server-side data fetching ──
+// Runs on every request so venture data is always fresh.
+// Fetches all rows from the `ventures` table ordered by display_order.
+// If the fetch fails for any reason, `ventures` is set to null and
+// the component renders the original hardcoded content instead.
+export async function getServerSideProps() {
+  try {
+    // Create Supabase client using env vars (never hardcode keys)
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+
+    // Fetch all ventures ordered by display_order ascending
+    const { data, error } = await supabase
+      .from('ventures')
+      .select('name, tagline, description, logo_url, website_url, status, display_order')
+      .order('display_order', { ascending: true })
+
+    // If Supabase errored or returned an empty table, use hardcoded fallback
+    if (error || !data || data.length === 0) {
+      return { props: { ventures: null } }
+    }
+
+    return { props: { ventures: data } }
+  } catch (err) {
+    // Catch any unexpected errors and fall back gracefully
+    console.error('[ventures.js] Supabase fetch failed, using fallback:', err.message)
+    return { props: { ventures: null } }
+  }
 }

@@ -232,11 +232,13 @@ export async function getServerSideProps() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     )
 
-    // Fetch the single content row from now_content
+    // Fetch the single content row from now_content.
+    // .maybeSingle() returns { data: null, error: null } when the table has
+    // no rows — safe fallback. .single() would throw PGRST116 (500 error).
     const { data, error } = await supabase
       .from('now_content')
       .select('focus_text, building, reading, thinking, updated_at')
-      .single()
+      .maybeSingle()
 
     // If Supabase returned an error or no row, use hardcoded fallback
     if (error || !data) {

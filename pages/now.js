@@ -70,8 +70,15 @@ const statusColors = {
 
 // ── Page component ──
 // Props are populated by getServerSideProps below.
-// If Supabase is unreachable, they fall back to the FALLBACK object above.
-export default function Now({ lastUpdated, building, learning, reading, testing, currentQuestion }) {
+// Default values guard against any props being undefined (extra safety layer).
+export default function Now({
+  lastUpdated    = FALLBACK.lastUpdated,
+  building       = FALLBACK.building,
+  learning       = FALLBACK.learning,
+  reading        = FALLBACK.reading,
+  testing        = FALLBACK.testing,
+  currentQuestion = FALLBACK.currentQuestion,
+}) {
   return (
     <Layout title="Now" description="What Navin Oswal is focused on right now — updated monthly.">
 
@@ -254,14 +261,28 @@ export async function getServerSideProps() {
     // Map Supabase fields to the props the component expects.
     // The `thinking` JSONB column holds both learning items and the testing
     // hypothesis: { learning: [...], testing: { hypothesis, detail } }
+    //
+    // We validate each field's type before using it — Supabase JSONB columns
+    // can sometimes return unexpected shapes (e.g. {} instead of []).
+    // Array.isArray() guards .map() calls; object checks guard property access.
     return {
       props: {
         lastUpdated,
-        building:        data.building            ?? FALLBACK.building,
-        reading:         data.reading             ?? FALLBACK.reading,
-        learning:        data.thinking?.learning  ?? FALLBACK.learning,
-        testing:         data.thinking?.testing   ?? FALLBACK.testing,
-        currentQuestion: data.focus_text          ?? FALLBACK.currentQuestion,
+        building: Array.isArray(data.building)
+          ? data.building
+          : FALLBACK.building,
+        reading: (data.reading && typeof data.reading === 'object' && !Array.isArray(data.reading))
+          ? data.reading
+          : FALLBACK.reading,
+        learning: Array.isArray(data.thinking?.learning)
+          ? data.thinking.learning
+          : FALLBACK.learning,
+        testing: (data.thinking?.testing && typeof data.thinking.testing === 'object')
+          ? data.thinking.testing
+          : FALLBACK.testing,
+        currentQuestion: (typeof data.focus_text === 'string' && data.focus_text)
+          ? data.focus_text
+          : FALLBACK.currentQuestion,
       },
     }
   } catch (err) {

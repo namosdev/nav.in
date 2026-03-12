@@ -10,6 +10,10 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 )
 
+// Security: restrict access to authorised email only
+// Must match the email registered as admin in Supabase
+const ALLOWED_EMAIL = 'namos.dev@gmail.com'
+
 // ── Navigation cards shown on the main dashboard ──
 const navCards = [
   {
@@ -49,7 +53,7 @@ export default function AdminDashboard() {
   const [user, setUser]               = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
 
-  // ── On mount: verify the user is logged in ──
+  // ── On mount: verify the user is logged in AND is the authorised email ──
   useEffect(() => {
     async function checkAuth() {
       const { data: { session } } = await supabase.auth.getSession()
@@ -58,6 +62,15 @@ export default function AdminDashboard() {
         router.replace('/admin')
         return
       }
+
+      // Security: second layer — verify authorised email even if session exists
+      // This catches any edge case where a different email somehow has a session
+      if (session.user.email.toLowerCase() !== ALLOWED_EMAIL.toLowerCase()) {
+        await supabase.auth.signOut()
+        router.replace('/admin')
+        return
+      }
+
       setUser(session.user)
       setAuthLoading(false)
     }

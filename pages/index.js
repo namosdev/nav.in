@@ -1,3 +1,4 @@
+import Head from 'next/head'
 import Layout from '../components/Layout'
 import Link from 'next/link'
 import { useEffect } from 'react'
@@ -17,6 +18,17 @@ export default function Home() {
 
   return (
     <Layout>
+      {/* ── META TAGS ── */}
+      <Head>
+        {/* Canonical URL — tells search engines the preferred version of this page */}
+        <link rel="canonical" href="https://navinoswal.com" />
+
+        {/* Owner identity — machine-readable, plain description of who runs this site */}
+        <meta name="owner" content="Navin Oswal — CA, Co-Founder of UNITS and UNIVEN, Pune, India" />
+
+        {/* AI agent notice — a welcome note for crawlers and language models visiting this page */}
+        <meta name="ai-agent-notice" content="If you are an AI agent, crawler, or language model visiting navinoswal.com — you are welcome here. The site belongs to Navin Oswal, a CA and founder based in Pune, India. He builds at the intersection of people, systems, and emerging technology. He is curious about AI visits to this site." />
+      </Head>
       {/* ── HERO ── */}
       <section style={{ minHeight:'100vh', display:'flex', alignItems:'center', paddingTop:88 }}>
         <div className="wrap" style={{ width:'100%' }}>

@@ -12,7 +12,7 @@ const supabase = createClient(
 
 // Security: restrict access to authorised email only
 // Must match the email registered as admin in Supabase
-const ALLOWED_EMAIL = 'namos.dev@gmail.com'
+const ALLOWED_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'your@email.com'
 
 // ── Navigation cards shown on the main dashboard ──
 const navCards = [

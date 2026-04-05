@@ -1,7 +1,20 @@
 import Layout from '../components/Layout'
 import Link from 'next/link'
+import { useEffect } from 'react'
+import { useRouter } from 'next/router'
 
 export default function Home() {
+  const router = useRouter()
+
+  // Session gate — first-time visitors (no 'cardSeen' flag) are redirected
+  // to /card. The card sets the flag in sessionStorage when the user exits,
+  // so subsequent visits within the same browser session go straight to /.
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !sessionStorage.getItem('cardSeen')) {
+      router.replace('/card')
+    }
+  }, [])
+
   return (
     <Layout>
       {/* ── HERO ── */}

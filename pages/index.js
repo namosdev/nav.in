@@ -645,14 +645,15 @@ export default function Home() {
         .visitor-counts-desktop { display: block; }
         .visitor-counts-mobile  { display: none; }
 
-        /* Floater — glassmorphism card, sage border, appears above widget */
+        /* Floater — glassmorphism card, appears above widget on desktop */
         .visitor-floater {
           position: absolute;
-          bottom: calc(100% + 12px);
+          bottom: 100%;
+          margin-bottom: 8px;
           left: 0;
-          width: 320px;
+          max-width: 320px;
           padding: 18px 20px;
-          z-index: 20;
+          z-index: 50;
           border: 1px solid rgba(45,106,79,0.2);
           box-shadow: 0 12px 40px rgba(45,106,79,0.14);
         }
@@ -676,13 +677,16 @@ export default function Home() {
           .visitor-counts-desktop { display: none; }
           .visitor-counts-mobile  { display: block; }
 
-          /* Floater full-width on mobile */
+          /* Floater appears below the counts text on mobile (more space below) */
           .visitor-floater {
-            position: relative;
+            position: absolute;
             bottom: auto;
-            left: auto;
+            top: 100%;
+            left: 0;
+            margin-bottom: 0;
+            margin-top: 8px;
             width: 100%;
-            margin-top: 16px;
+            max-width: none;
           }
         }
       `}</style>

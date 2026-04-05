@@ -11,7 +11,7 @@ const supabase = createClient(
 
 // Security: restrict access to authorised email only
 // Only this email address may request a magic link or access the admin panel
-const ALLOWED_EMAIL = 'namos.dev@gmail.com'
+const ALLOWED_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'your@email.com'
 
 export default function AdminLogin() {
   const router  = useRouter()
@@ -143,7 +143,7 @@ export default function AdminLogin() {
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="namos.dev@gmail.com"
+                  placeholder="your@email.com"
                   required
                   style={{
                     padding: '11px 14px',

@@ -435,7 +435,11 @@ function flipCard() {
   isFlipped = !isFlipped;
   document.getElementById('scene').classList.toggle('flipped', isFlipped);
 }
-function goSite() { window.location.href = DEST; }
+function goSite() {
+  // Mark card as seen for this session so the redirect gate on / won't fire again
+  sessionStorage.setItem('cardSeen', '1');
+  window.location.href = DEST;
+}
 
 /* ── Canvas particles ── */
 const cvs = document.getElementById('canvas');

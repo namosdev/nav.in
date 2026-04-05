@@ -82,6 +82,7 @@ These exist in .env.local (never commit this file):
 - Supabase connected (meeting_requests table exists)
 - Design system locked
 - Admin panel Phase 1 (auth + dashboard + meeting requests viewer)
+- Visiting Card ✅ COMPLETE — live at navinoswal.com/card, file at /public/card/index.html
 
 ### In Progress
 - Admin panel security hardening (fix/admin-email-restriction)

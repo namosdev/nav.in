@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Navin Oswal</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Outfit:wght@200;300;400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<style>
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --bg:       #060a09;
+  --sage:     #52b788;
+  --sage-d:   rgba(82,183,136,0.22);
+  --sage-dd:  rgba(82,183,136,0.08);
+  --amber:    #f0b429;
+  --amber-d:  rgba(240,180,41,0.22);
+  --cream:    #f2f7f4;
+  --cream-4:  rgba(242,247,244,0.42);
+  --cream-2:  rgba(242,247,244,0.2);
+  --cream-1:  rgba(242,247,244,0.1);
+}
+
+html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); }
+
+/* ── Canvas ── */
+#canvas { position:fixed; inset:0; pointer-events:none; z-index:1; }
+
+/* ── Atmospheric gradient blobs ── */
+body::before {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(ellipse 55% 45% at 18% 22%, rgba(45,106,79,0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 45% 38% at 82% 78%, rgba(180,83,9,0.12) 0%, transparent 55%),
+    radial-gradient(ellipse 35% 30% at 72% 18%, rgba(82,183,136,0.06) 0%, transparent 50%);
+}
+
+/* ── Philosophy overlay ── */
+#phil {
+  position:fixed; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:6px;
+  z-index:8; pointer-events:none;
+}
+.pl {
+  font-family:'Cormorant Garamond',serif; font-style:italic; font-weight:300;
+  font-size:clamp(28px,4.8vw,56px); color:var(--cream); letter-spacing:0.02em;
+  text-align:center;
+  opacity:0; transform:translateY(10px);
+  transition:opacity 1.2s ease, transform 1.2s cubic-bezier(0.16,1,0.3,1);
+}
+
+/* ── Scene (full-screen 3D flip container) ── */
+body { perspective:1800px; }
+
+#scene {
+  position:fixed; inset:0; transform-style:preserve-3d;
+  transition:transform 0.85s cubic-bezier(0.4,0,0.2,1);
+  z-index:3;
+}
+#scene.flipped { transform:rotateY(180deg); }
+
+.face {
+  position:fixed; inset:0;
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+  display:flex; flex-direction:column; justify-content:center;
+}
+.face-back { transform:rotateY(180deg); }
+
+/* ── Page corner brackets (on front face) ── */
+.pc { position:absolute; width:24px; height:24px; opacity:0; transition:opacity 1.4s; }
+.pc.tl { top:28px; left:28px; }
+.pc.tr { top:28px; right:28px; }
+.pc.bl { bottom:28px; left:28px; }
+.pc.br { bottom:28px; right:28px; }
+
+/* ── FRONT FACE ── */
+#front {
+  padding:clamp(50px,7vh,90px) clamp(56px,7vw,110px);
+}
+
+.front-grid {
+  display:grid;
+  grid-template-columns:1fr clamp(130px,16vw,200px);
+  gap:clamp(32px,4vw,64px);
+  align-items:center;
+  width:100%; max-width:1200px;
+}
+
+.front-left { display:flex; flex-direction:column; gap:0; }
+
+.eyebrow {
+  font-family:'JetBrains Mono',monospace;
+  font-size:clamp(8px,0.9vw,11px); font-weight:400;
+  letter-spacing:0.38em; text-transform:uppercase; color:var(--sage);
+  display:flex; align-items:center; gap:12px;
+  margin-bottom:clamp(14px,2.5vh,28px);
+  opacity:0; transform:translateY(5px);
+  transition:opacity 0.8s, transform 0.8s cubic-bezier(0.16,1,0.3,1);
+}
+.eyebrow::before { content:''; width:24px; height:1px; background:var(--sage); flex-shrink:0; }
+
+.name-clip { overflow:hidden; line-height:1.05; }
+.name-char {
+  font-family:'Cormorant Garamond',serif; font-weight:300;
+  font-size:clamp(68px,11.5vw,138px); letter-spacing:0.06em;
+  display:block; transform:translateY(105%); opacity:0;
+  transition:transform 1s cubic-bezier(0.16,1,0.3,1), opacity 0.5s;
+}
+#nm1 { color:var(--cream); }
+#nm2 { color:var(--sage); }
+
+.f-rule {
+  height:1px; width:0; opacity:0;
+  background:linear-gradient(90deg,var(--sage-d),rgba(82,183,136,0.06) 70%, transparent);
+  margin:clamp(16px,2.8vh,30px) 0;
+  transition:width 0.9s cubic-bezier(0.16,1,0.3,1), opacity 0.15s;
+}
+
+.tagline {
+  font-family:'Cormorant Garamond',serif; font-style:italic; font-weight:300;
+  font-size:clamp(14px,1.8vw,20px); color:var(--cream-4); letter-spacing:0.02em;
+  opacity:0; transform:translateY(5px);
+  transition:opacity 0.8s, transform 0.8s cubic-bezier(0.16,1,0.3,1);
+  margin-bottom:clamp(14px,2vh,24px);
+}
+
+.tags { display:flex; flex-wrap:wrap; gap:8px; opacity:0; transition:opacity 0.8s; }
+.tag {
+  font-family:'JetBrains Mono',monospace; font-size:clamp(7px,0.75vw,9px);
+  letter-spacing:0.16em; text-transform:uppercase;
+  padding:5px 12px; border-radius:100px; border:1px solid;
+}
+.tag-sage  { color:var(--sage);  border-color:var(--sage-d);  background:var(--sage-dd); }
+.tag-amber { color:var(--amber); border-color:var(--amber-d); background:rgba(240,180,41,0.07); }
+.tag-muted { color:var(--cream-2); border-color:rgba(242,247,244,0.1); }
+
+/* Monogram */
+.mono-wrap {
+  width:clamp(130px,16vw,200px); height:clamp(130px,16vw,200px);
+  position:relative; flex-shrink:0; align-self:center;
+  opacity:0; transform:scale(0.9);
+  transition:opacity 1s, transform 1s cubic-bezier(0.16,1,0.3,1);
+}
+.mono-ring {
+  position:absolute; inset:-4px; border-radius:50%;
+  background:conic-gradient(from 0deg, var(--sage) 0%, var(--amber) 38%, rgba(82,183,136,0.12) 68%, var(--sage) 100%);
+  animation:spin 8s linear infinite;
+  mask:radial-gradient(farthest-side, transparent calc(100% - 2px), white calc(100% - 2px));
+  -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 2px), white calc(100% - 2px));
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.mono {
+  width:100%; height:100%; border-radius:50%;
+  background:linear-gradient(145deg,#1c3028,#111d18);
+  border:1px solid rgba(82,183,136,0.2);
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(50px,6.5vw,82px); font-weight:500;
+  color:#e8f5ee; position:relative; z-index:1; letter-spacing:-0.02em;
+}
+
+/* Top shimmer line */
+.shimmer-line {
+  position:absolute; top:0; left:10%; right:10%; height:1px;
+  background:linear-gradient(90deg,transparent,rgba(251,191,36,0.32),rgba(251,191,36,0.65),rgba(251,191,36,0.32),transparent);
+  opacity:0; animation:shimmer 3.5s ease-in-out infinite;
+  transition:opacity 0.8s;
+}
+@keyframes shimmer { 0%,100%{opacity:0.35;transform:scaleX(0.85);} 50%{opacity:1;transform:scaleX(1);} }
+
+/* Flip hint */
+#flip-hint {
+  position:absolute; bottom:32px; right:40px;
+  font-family:'JetBrains Mono',monospace; font-size:9px;
+  letter-spacing:0.3em; text-transform:uppercase; color:rgba(82,183,136,0.38);
+  display:flex; align-items:center; gap:10px; cursor:pointer;
+  opacity:0; transition:opacity 0.8s, color 0.3s;
+  user-select:none;
+}
+#flip-hint:hover { color:rgba(82,183,136,0.7); }
+#flip-hint svg { width:14px; height:14px; animation:rotate-hint 4s ease-in-out infinite; }
+@keyframes rotate-hint { 0%,100%{transform:rotate(0deg);} 50%{transform:rotate(180deg);} }
+
+/* ── BACK FACE ── */
+#back {
+  background:linear-gradient(145deg,#060e0b 0%,#08110e 50%,#060a08 100%);
+  padding:clamp(44px,6.5vh,80px) clamp(56px,7vw,110px);
+  position:relative;
+}
+#back::before {
+  content:''; position:absolute; bottom:0; left:10%; right:10%; height:1px;
+  background:linear-gradient(90deg,transparent,rgba(82,183,136,0.22),rgba(240,180,41,0.3),rgba(82,183,136,0.22),transparent);
+  animation:shimmer 3.5s ease-in-out infinite;
+}
+
+.back-grid {
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:clamp(32px,5vw,80px); align-items:start;
+  width:100%; max-width:1100px;
+}
+
+.b-section-label {
+  font-family:'JetBrains Mono',monospace; font-size:8px;
+  letter-spacing:0.38em; text-transform:uppercase;
+  color:rgba(242,247,244,0.2); margin-bottom:20px;
+  display:flex; align-items:center; gap:12px;
+}
+.b-section-label::after { content:''; flex:1; height:1px; background:rgba(242,247,244,0.07); }
+
+/* Ventures */
+.venture {
+  margin-bottom:clamp(20px,3.5vh,36px); padding-bottom:clamp(16px,2.5vh,28px);
+  border-bottom:1px solid rgba(82,183,136,0.07);
+}
+.venture:last-child { border-bottom:none; margin-bottom:0; }
+
+.v-header { display:flex; align-items:center; gap:10px; margin-bottom:7px; }
+.v-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; animation:pulse 2.5s ease-in-out infinite; }
+.v-dot.sage  { background:var(--sage);  }
+.v-dot.amber { background:var(--amber); animation-delay:0.8s; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+.v-name {
+  font-family:'JetBrains Mono',monospace; font-size:clamp(10px,1.1vw,13px);
+  letter-spacing:0.18em; text-transform:uppercase; color:var(--cream-4); font-weight:500;
+}
+.v-desc {
+  font-family:'Cormorant Garamond',serif; font-style:italic; font-weight:300;
+  font-size:clamp(13px,1.5vw,17px); color:rgba(242,247,244,0.28);
+  line-height:1.55; margin-bottom:8px; padding-left:16px;
+}
+.v-link {
+  font-family:'JetBrains Mono',monospace; font-size:clamp(8px,0.85vw,10px);
+  letter-spacing:0.14em; color:rgba(82,183,136,0.45);
+  text-decoration:none; display:flex; align-items:center; gap:8px;
+  padding-left:16px; transition:color 0.3s;
+}
+.v-link:hover { color:var(--sage); }
+.v-link::after { content:'→'; }
+
+/* Connect */
+.contact-list { display:flex; flex-direction:column; gap:2px; margin-bottom:28px; }
+.clink {
+  display:flex; align-items:center; gap:12px; padding:9px 0;
+  text-decoration:none; border-bottom:1px solid rgba(255,255,255,0.04);
+  transition:all 0.25s;
+}
+.clink:last-child { border-bottom:none; }
+.clink:hover .clabel { color:var(--sage); }
+.cicon {
+  font-size:10px; width:20px; text-align:center;
+  color:rgba(242,247,244,0.25); flex-shrink:0;
+  font-family:'JetBrains Mono',monospace;
+}
+.clabel {
+  font-family:'Outfit',sans-serif; font-size:clamp(10px,1.1vw,13px);
+  color:rgba(242,247,244,0.42); font-weight:300; letter-spacing:0.01em;
+  transition:color 0.25s;
+}
+
+/* Back bottom */
+.back-bottom {
+  position:absolute; bottom:clamp(28px,4.5vh,52px);
+  left:clamp(56px,7vw,110px); right:clamp(56px,7vw,110px);
+  display:flex; justify-content:space-between; align-items:flex-end;
+}
+.mission {
+  font-family:'Cormorant Garamond',serif; font-style:italic; font-weight:300;
+  font-size:clamp(13px,1.5vw,17px); color:rgba(242,247,244,0.2); line-height:1.6;
+}
+#back-flip {
+  font-family:'JetBrains Mono',monospace; font-size:9px;
+  letter-spacing:0.3em; text-transform:uppercase; color:rgba(82,183,136,0.3);
+  cursor:pointer; transition:color 0.3s; user-select:none;
+  display:flex; align-items:center; gap:10px;
+}
+#back-flip:hover { color:rgba(82,183,136,0.65); }
+
+/* ── Progress bar ── */
+#pgwrap {
+  position:fixed; bottom:0; left:0; right:0; z-index:9;
+  cursor:pointer; opacity:0; transition:opacity 0.9s;
+}
+#pgwrap:hover #pghint { color:rgba(82,183,136,0.55); }
+#pgwrap:hover #pgfill { background:linear-gradient(90deg,transparent,var(--sage)); }
+#pghint {
+  position:absolute; bottom:7px; right:18px;
+  font-family:'JetBrains Mono',monospace; font-size:8px;
+  font-weight:400; letter-spacing:0.38em; text-transform:uppercase;
+  color:rgba(82,183,136,0.22); user-select:none; transition:color 0.4s;
+}
+#pgtrack { height:1px; width:100%; background:rgba(82,183,136,0.07); }
+#pgfill { height:100%; width:0%; background:linear-gradient(90deg,transparent,rgba(82,183,136,0.6)); transition:background 0.4s; }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<!-- Philosophy — renders before everything -->
+<div id="phil">
+  <div class="pl" id="pl1">Curious by nature.</div>
+  <div class="pl" id="pl2">Optimist by choice.</div>
+</div>
+
+<!-- Full-screen flip scene -->
+<div id="scene">
+
+  <!-- ─── FRONT FACE ─── -->
+  <div class="face face-front" id="front">
+
+    <!-- Shimmer top edge -->
+    <div class="shimmer-line" id="shimmer"></div>
+
+    <!-- Page corners -->
+    <div class="pc tl" id="pc1"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M24 1H1V24" stroke="rgba(82,183,136,0.3)" stroke-width="0.8"/></svg></div>
+    <div class="pc tr" id="pc2"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M1 1H24V24" stroke="rgba(82,183,136,0.3)" stroke-width="0.8"/></svg></div>
+    <div class="pc bl" id="pc3"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M24 24H1V1" stroke="rgba(82,183,136,0.3)" stroke-width="0.8"/></svg></div>
+    <div class="pc br" id="pc4"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M1 24H24V1" stroke="rgba(82,183,136,0.3)" stroke-width="0.8"/></svg></div>
+
+    <div class="front-grid">
+
+      <div class="front-left">
+        <div class="eyebrow" id="eyebrow">Chartered Accountant</div>
+
+        <div class="name-clip"><span class="name-char" id="nm1">Navin</span></div>
+        <div class="name-clip"><span class="name-char" id="nm2"><em style="font-style:italic;font-weight:300;">Oswal</em></span></div>
+
+        <div class="f-rule" id="frule"></div>
+
+        <p class="tagline" id="tagline">Curious by nature. Optimist by choice.</p>
+
+        <div class="tags" id="tags">
+          <span class="tag tag-sage">Co-Founder</span>
+          <span class="tag tag-amber">Builder</span>
+          <span class="tag tag-muted">Pune · India</span>
+        </div>
+      </div>
+
+      <div class="mono-wrap" id="monogram">
+        <div class="mono-ring"></div>
+        <div class="mono">N</div>
+      </div>
+
+    </div>
+
+    <!-- Flip hint -->
+    <div id="flip-hint" onclick="flipCard()">
+      Ventures &amp; connect
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M4 12a8 8 0 0 1 16 0M20 12a8 8 0 0 1-16 0M12 2v4M12 22v-4"/>
+        <path d="M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"/>
+      </svg>
+    </div>
+
+  </div><!-- /front -->
+
+  <!-- ─── BACK FACE ─── -->
+  <div class="face face-back" id="back">
+
+    <div class="back-grid">
+
+      <!-- Ventures -->
+      <div>
+        <div class="b-section-label">Ventures</div>
+
+        <div class="venture">
+          <div class="v-header">
+            <span class="v-dot sage"></span>
+            <span class="v-name">UNITS</span>
+          </div>
+          <p class="v-desc">Business operations,<br>simplified for India.</p>
+          <a class="v-link" href="https://sayunits.com" target="_blank">sayunits.com</a>
+        </div>
+
+        <div class="venture">
+          <div class="v-header">
+            <span class="v-dot amber"></span>
+            <span class="v-name">UNIVEN</span>
+          </div>
+          <p class="v-desc">The university ecosystem,<br>reimagined.</p>
+          <a class="v-link" href="https://univen.co" target="_blank">univen.co</a>
+        </div>
+      </div>
+
+      <!-- Connect -->
+      <div>
+        <div class="b-section-label">Connect</div>
+        <div class="contact-list">
+          <a class="clink" href="mailto:navinoswalz@gmail.com">
+            <span class="cicon">✉</span>
+            <span class="clabel">navinoswalz@gmail.com</span>
+          </a>
+          <a class="clink" href="https://linkedin.com/in/namoswal" target="_blank">
+            <span class="cicon" style="font-weight:500;font-size:9px;">in</span>
+            <span class="clabel">linkedin.com/in/namoswal</span>
+          </a>
+          <a class="clink" href="https://substack.com/@navinoswal" target="_blank">
+            <span class="cicon">✍</span>
+            <span class="clabel">substack.com/@navinoswal</span>
+          </a>
+          <a class="clink" href="https://navinoswal.com" target="_blank">
+            <span class="cicon">◈</span>
+            <span class="clabel">navinoswal.com</span>
+          </a>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="back-bottom">
+      <div class="mission">Making life easier<br>for businesses in India.</div>
+      <div id="back-flip" onclick="flipCard()">← front</div>
+    </div>
+
+  </div><!-- /back -->
+
+</div><!-- /scene -->
+
+<!-- Progress bar — bottom edge -->
+<div id="pgwrap" onclick="goSite()">
+  <div style="padding:10px 0 5px;position:relative;"><span id="pghint">entering navinoswal.com</span></div>
+  <div id="pgtrack"><div id="pgfill"></div></div>
+</div>
+
+<script>
+const DEST = '/';
+const TOTAL_MS = 8500;
+let isFlipped = false;
+
+function flipCard() {
+  isFlipped = !isFlipped;
+  document.getElementById('scene').classList.toggle('flipped', isFlipped);
+}
+function goSite() { window.location.href = DEST; }
+
+/* ── Canvas particles ── */
+const cvs = document.getElementById('canvas');
+const ctx = cvs.getContext('2d');
+function resize() { cvs.width=innerWidth; cvs.height=innerHeight; }
+resize(); addEventListener('resize', resize);
+
+function drawBlob(cx,cy,rx,ry,r,g,b,a) {
+  const grd = ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(rx,ry));
+  grd.addColorStop(0,`rgba(${r},${g},${b},${a})`);
+  grd.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.save(); ctx.scale(rx/ry,1); ctx.fillStyle=grd;
+  ctx.beginPath(); ctx.arc(cx*(ry/rx),cy,ry,0,Math.PI*2); ctx.fill(); ctx.restore();
+}
+
+const pts = Array.from({length:60},()=>mkPt(true));
+function mkPt(s) {
+  return {
+    x: Math.random()*(innerWidth||1440),
+    y: s?Math.random()*(innerHeight||900):innerHeight+10,
+    r: Math.random()*0.95+0.1,
+    vy:-(Math.random()*0.25+0.06),
+    vx: (Math.random()-.5)*0.1,
+    a: Math.random()*0.26+0.04,
+    t: Math.random()*Math.PI*2,
+    ts: Math.random()*0.012+0.003,
+    sage: Math.random()>0.35,
+  };
+}
+function rloop() {
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  for (const p of pts) {
+    p.x+=p.vx; p.y+=p.vy; p.t+=p.ts;
+    if(p.y<-5) Object.assign(p,mkPt(false));
+    const a=p.a*(0.5+0.5*Math.sin(p.t));
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fillStyle = p.sage ? `rgba(82,183,136,${a.toFixed(3)})` : `rgba(240,180,41,${(a*0.5).toFixed(3)})`;
+    ctx.fill();
+  }
+  requestAnimationFrame(rloop);
+}
+rloop();
+
+/* ── Helpers ── */
+const at=(ms,fn)=>setTimeout(fn,ms);
+function css(id,props){const el=typeof id==='string'?document.getElementById(id):id;if(el)Object.assign(el.style,props);}
+
+/* ── Animation sequence ── */
+at(250, () => ['pc1','pc2','pc3','pc4'].forEach(id=>css(id,{opacity:'1'})));
+at(700, () => css('pl1',{opacity:'1',transform:'translateY(0)'}));
+at(1100,() => css('pl2',{opacity:'1',transform:'translateY(0)'}));
+at(2100,() => {
+  ['pl1','pl2'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.style.opacity='0'; el.style.transform='translateY(-8px)';
+  });
+});
+at(2300,() => {
+  css('shimmer',{opacity:'1'});
+  css('eyebrow',{opacity:'1',transform:'translateY(0)'});
+});
+at(2650,() => css('nm1',{transform:'translateY(0)',opacity:'1'}));
+at(3100,() => css('nm2',{transform:'translateY(0)',opacity:'1'}));
+at(3550,() => css('frule',{opacity:'1',width:'100%'}));
+at(3850,() => css('tagline',{opacity:'1',transform:'translateY(0)'}));
+at(4100,() => css('tags',{opacity:'1'}));
+at(4350,() => css('monogram',{opacity:'1',transform:'scale(1)'}));
+at(4800,() => css('flip-hint',{opacity:'1'}));
+at(5000,() => { css('pgwrap',{opacity:'1'}); startProgress(); });
+
+/* ── Progress bar ── */
+function startProgress() {
+  const fill=document.getElementById('pgfill');
+  const remaining=TOTAL_MS-5000;
+  const t0=performance.now();
+  (function step(now){
+    const pct=Math.min((now-t0)/remaining*100,100);
+    fill.style.width=pct.toFixed(1)+'%';
+    pct<100?requestAnimationFrame(step):setTimeout(goSite,200);
+  })(t0);
+}
+</script>
+</body>
+</html>

@@ -23,7 +23,11 @@
   --cream-1:  rgba(242,247,244,0.1);
 }
 
-html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); }
+/* Full-screen body — flex-centres the constrained card wrapper */
+html, body {
+  width:100%; height:100%; overflow:hidden; background:var(--bg);
+  display:flex; align-items:center; justify-content:center;
+}
 
 /* ── Canvas ── */
 #canvas { position:fixed; inset:0; pointer-events:none; z-index:1; }
@@ -51,23 +55,37 @@ body::before {
   transition:opacity 1.2s ease, transform 1.2s cubic-bezier(0.16,1,0.3,1);
 }
 
-/* ── Scene (full-screen 3D flip container) ── */
-body { perspective:1800px; }
+/* ── Card wrapper — constrains width, clips the flip animation ── */
+.card-wrapper {
+  position: relative;
+  width: 67vw;
+  height: 90vh;
+  perspective: 1800px;
+  overflow: hidden;
+  z-index: 3;
+}
 
+/* ── Scene (3D flip element — lives inside card wrapper) ── */
 #scene {
-  position:fixed; inset:0; transform-style:preserve-3d;
-  transition:transform 0.85s cubic-bezier(0.4,0,0.2,1);
-  z-index:3;
+  position: absolute; inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 0.85s cubic-bezier(0.4,0,0.2,1);
 }
 #scene.flipped { transform:rotateY(180deg); }
 
+/* ── Faces — fill the card wrapper ── */
 .face {
-  position:fixed; inset:0;
-  backface-visibility:hidden;
-  -webkit-backface-visibility:hidden;
-  display:flex; flex-direction:column; justify-content:center;
+  position: absolute; inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex; flex-direction: column; justify-content: center;
 }
 .face-back { transform:rotateY(180deg); }
+
+/* ── Mobile: wider card, taller card ── */
+@media (max-width: 767px) {
+  .card-wrapper { width: 92vw; height: 92vh; }
+}
 
 /* ── Page corner brackets (on front face) ── */
 .pc { position:absolute; width:24px; height:24px; opacity:0; transition:opacity 1.4s; }
@@ -121,7 +139,7 @@ body { perspective:1800px; }
 
 .tagline {
   font-family:'Cormorant Garamond',serif; font-style:italic; font-weight:300;
-  font-size:clamp(14px,1.8vw,20px); color:var(--cream-4); letter-spacing:0.02em;
+  font-size:clamp(14px,1.8vw,20px); color:rgba(242,247,244,0.85); letter-spacing:0.02em;
   opacity:0; transform:translateY(5px);
   transition:opacity 0.8s, transform 0.8s cubic-bezier(0.16,1,0.3,1);
   margin-bottom:clamp(14px,2vh,24px);
@@ -205,7 +223,7 @@ body { perspective:1800px; }
 .b-section-label {
   font-family:'JetBrains Mono',monospace; font-size:8px;
   letter-spacing:0.38em; text-transform:uppercase;
-  color:rgba(242,247,244,0.2); margin-bottom:20px;
+  color:rgba(251,191,36,0.9); margin-bottom:20px;
   display:flex; align-items:center; gap:12px;
 }
 .b-section-label::after { content:''; flex:1; height:1px; background:rgba(242,247,244,0.07); }
@@ -225,16 +243,16 @@ body { perspective:1800px; }
 
 .v-name {
   font-family:'JetBrains Mono',monospace; font-size:clamp(10px,1.1vw,13px);
-  letter-spacing:0.18em; text-transform:uppercase; color:var(--cream-4); font-weight:500;
+  letter-spacing:0.18em; text-transform:uppercase; color:rgba(242,247,244,0.9); font-weight:500;
 }
 .v-desc {
   font-family:'Cormorant Garamond',serif; font-style:italic; font-weight:300;
-  font-size:clamp(13px,1.5vw,17px); color:rgba(242,247,244,0.28);
+  font-size:clamp(13px,1.5vw,17px); color:rgba(242,247,244,0.85);
   line-height:1.55; margin-bottom:8px; padding-left:16px;
 }
 .v-link {
   font-family:'JetBrains Mono',monospace; font-size:clamp(8px,0.85vw,10px);
-  letter-spacing:0.14em; color:rgba(82,183,136,0.45);
+  letter-spacing:0.14em; color:rgba(82,183,136,0.85);
   text-decoration:none; display:flex; align-items:center; gap:8px;
   padding-left:16px; transition:color 0.3s;
 }
@@ -252,12 +270,12 @@ body { perspective:1800px; }
 .clink:hover .clabel { color:var(--sage); }
 .cicon {
   font-size:10px; width:20px; text-align:center;
-  color:rgba(242,247,244,0.25); flex-shrink:0;
+  color:rgba(242,247,244,0.75); flex-shrink:0;
   font-family:'JetBrains Mono',monospace;
 }
 .clabel {
   font-family:'Outfit',sans-serif; font-size:clamp(10px,1.1vw,13px);
-  color:rgba(242,247,244,0.42); font-weight:300; letter-spacing:0.01em;
+  color:rgba(242,247,244,0.85); font-weight:300; letter-spacing:0.01em;
   transition:color 0.25s;
 }
 
@@ -265,11 +283,11 @@ body { perspective:1800px; }
 .back-bottom {
   position:absolute; bottom:clamp(28px,4.5vh,52px);
   left:clamp(56px,7vw,110px); right:clamp(56px,7vw,110px);
-  display:flex; justify-content:space-between; align-items:flex-end;
+  display:flex; justify-content:space-between; align-items:center;
 }
 .mission {
   font-family:'Cormorant Garamond',serif; font-style:italic; font-weight:300;
-  font-size:clamp(13px,1.5vw,17px); color:rgba(242,247,244,0.2); line-height:1.6;
+  font-size:clamp(13px,1.5vw,17px); color:rgba(242,247,244,0.75); line-height:1.6;
 }
 #back-flip {
   font-family:'JetBrains Mono',monospace; font-size:9px;
@@ -279,21 +297,27 @@ body { perspective:1800px; }
 }
 #back-flip:hover { color:rgba(82,183,136,0.65); }
 
-/* ── Progress bar ── */
-#pgwrap {
-  position:fixed; bottom:0; left:0; right:0; z-index:9;
-  cursor:pointer; opacity:0; transition:opacity 0.9s;
+/* ── "Explore his story" CTA button — appears on back face bottom ── */
+.explore-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(9px,0.9vw,11px);
+  letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--sage);
+  background: transparent;
+  border: 1px solid rgba(82,183,136,0.55);
+  border-radius: 100px;
+  padding: clamp(8px,1.2vh,12px) clamp(20px,2.5vw,32px);
+  cursor: pointer; text-decoration: none;
+  display: inline-block;
+  transition: background 0.25s, color 0.25s, border-color 0.25s, box-shadow 0.25s;
+  white-space: nowrap;
 }
-#pgwrap:hover #pghint { color:rgba(82,183,136,0.55); }
-#pgwrap:hover #pgfill { background:linear-gradient(90deg,transparent,var(--sage)); }
-#pghint {
-  position:absolute; bottom:7px; right:18px;
-  font-family:'JetBrains Mono',monospace; font-size:8px;
-  font-weight:400; letter-spacing:0.38em; text-transform:uppercase;
-  color:rgba(82,183,136,0.22); user-select:none; transition:color 0.4s;
+.explore-btn:hover {
+  background: var(--sage);
+  color: #060a09;
+  border-color: var(--sage);
+  box-shadow: 0 4px 18px rgba(82,183,136,0.28);
 }
-#pgtrack { height:1px; width:100%; background:rgba(82,183,136,0.07); }
-#pgfill { height:100%; width:0%; background:linear-gradient(90deg,transparent,rgba(82,183,136,0.6)); transition:background 0.4s; }
 </style>
 </head>
 <body>
@@ -306,7 +330,8 @@ body { perspective:1800px; }
   <div class="pl" id="pl2">Optimist by choice.</div>
 </div>
 
-<!-- Full-screen flip scene -->
+<!-- Card wrapper — constrains width and clips the 3D flip -->
+<div class="card-wrapper">
 <div id="scene">
 
   <!-- ─── FRONT FACE ─── -->
@@ -413,32 +438,22 @@ body { perspective:1800px; }
 
     <div class="back-bottom">
       <div class="mission">Making life easier<br>for businesses in India.</div>
+      <!-- CTA: navigates to the main site — added after auto-redirect removal -->
+      <a href="https://navinoswal.com" class="explore-btn">Explore his story →</a>
       <div id="back-flip" onclick="flipCard()">← front</div>
     </div>
 
   </div><!-- /back -->
 
 </div><!-- /scene -->
-
-<!-- Progress bar — bottom edge -->
-<div id="pgwrap" onclick="goSite()">
-  <div style="padding:10px 0 5px;position:relative;"><span id="pghint">entering navinoswal.com</span></div>
-  <div id="pgtrack"><div id="pgfill"></div></div>
-</div>
+</div><!-- /card-wrapper -->
 
 <script>
-const DEST = '/';
-const TOTAL_MS = 8500;
 let isFlipped = false;
 
 function flipCard() {
   isFlipped = !isFlipped;
   document.getElementById('scene').classList.toggle('flipped', isFlipped);
-}
-function goSite() {
-  // Mark card as seen for this session so the redirect gate on / won't fire again
-  sessionStorage.setItem('cardSeen', '1');
-  window.location.href = DEST;
 }
 
 /* ── Canvas particles ── */
@@ -508,19 +523,6 @@ at(3850,() => css('tagline',{opacity:'1',transform:'translateY(0)'}));
 at(4100,() => css('tags',{opacity:'1'}));
 at(4350,() => css('monogram',{opacity:'1',transform:'scale(1)'}));
 at(4800,() => css('flip-hint',{opacity:'1'}));
-at(5000,() => { css('pgwrap',{opacity:'1'}); startProgress(); });
-
-/* ── Progress bar ── */
-function startProgress() {
-  const fill=document.getElementById('pgfill');
-  const remaining=TOTAL_MS-5000;
-  const t0=performance.now();
-  (function step(now){
-    const pct=Math.min((now-t0)/remaining*100,100);
-    fill.style.width=pct.toFixed(1)+'%';
-    pct<100?requestAnimationFrame(step):setTimeout(goSite,200);
-  })(t0);
-}
 </script>
 </body>
 </html>

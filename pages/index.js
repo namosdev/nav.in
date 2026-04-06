@@ -67,6 +67,18 @@ export default function Home() {
   // optimisticCounts: increments applied immediately on chip click before API confirms
   const [optimisticCounts, setOptimisticCounts] = useState({})
 
+  // ── Monthly question widget state ──
+  // activeQuestion: { id, question } from /api/question-data, or null
+  const [activeQuestion, setActiveQuestion]   = useState(undefined) // undefined = loading
+  // questionTally: { yes, no, total } — null until fetched
+  const [questionTally, setQuestionTally]     = useState(null)
+  // questionVoted: true if visitor already voted this session
+  const [questionVoted, setQuestionVoted]     = useState(false)
+  // questionPhase: 'voting' | 'thankyou' | 'tally'
+  const [questionPhase, setQuestionPhase]     = useState('voting')
+  // voteEnabled: true once visitor has selected an identity chip
+  const [voteEnabled, setVoteEnabled]         = useState(false)
+
   // ── Sentiment strip state ──
   // showSentiment: whether the floating strip is mounted in the DOM
   const [showSentiment, setShowSentiment]     = useState(false)
@@ -88,11 +100,20 @@ export default function Home() {
     }
   }, [])
 
-  // ── On mount: restore saved category + fetch visitor counts ──
+  // ── On mount: restore saved category + fetch visitor counts + question data ──
   useEffect(() => {
     // Restore the category the visitor already selected in this session
     const saved = sessionStorage.getItem('visitorCategorySelected')
-    if (saved) setSelectedSlug(saved)
+    if (saved) {
+      setSelectedSlug(saved)
+      setVoteEnabled(true) // category already selected — unlock voting
+    }
+
+    // Check if visitor already voted on the question this session
+    if (sessionStorage.getItem('question_voted')) {
+      setQuestionVoted(true)
+      setQuestionPhase('tally')
+    }
 
     // Fetch live per-category visitor counts from our API
     fetch('/api/visitor-counts')
@@ -102,6 +123,21 @@ export default function Home() {
       })
       .then(data => setCounts(data))
       .catch(() => setCountsError(true))
+
+    // Fetch the active monthly question and its current tally
+    fetch('/api/question-data')
+      .then(r => {
+        if (!r.ok) throw new Error('Non-200 response')
+        return r.json()
+      })
+      .then(data => {
+        setActiveQuestion(data.question)  // null if no active question
+        setQuestionTally(data.tally)
+      })
+      .catch(() => {
+        // Silently fail — hide the widget if fetch errors
+        setActiveQuestion(null)
+      })
   }, [])
 
   // ── Scroll listener: show sentiment strip after 60% page depth ──
@@ -141,7 +177,10 @@ export default function Home() {
     // 3. Persist to sessionStorage so the selection survives page navigation
     sessionStorage.setItem('visitorCategorySelected', cat.slug)
 
-    // 4. Fire-and-forget API call — UI has already updated; silently ignore errors
+    // 4. Enable the question widget vote buttons (they read visitorCategorySelected)
+    setVoteEnabled(true)
+
+    // 5. Fire-and-forget API call — UI has already updated; silently ignore errors
     fetch('/api/log-human-visit', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -157,6 +196,54 @@ export default function Home() {
     const base     = counts?.category_breakdown?.[slug] ?? 0
     const optimistic = optimisticCounts[slug] ?? 0
     return base + optimistic
+  }
+
+  // ── Handle monthly question vote ──
+  // Posts vote to /api/vote-question, updates tally in UI.
+  async function handleVote(voteValue) {
+    if (!activeQuestion) return
+
+    // Get or create a session_id (short random string, persisted for this session)
+    let sessionId = sessionStorage.getItem('session_id')
+    if (!sessionId) {
+      sessionId = Math.random().toString(36).slice(2, 10)
+      sessionStorage.setItem('session_id', sessionId)
+    }
+
+    // Get the visitor's category from sessionStorage
+    const categorySlug = sessionStorage.getItem('visitorCategorySelected') || 'none'
+
+    try {
+      const res = await fetch('/api/vote-question', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question_id:   activeQuestion.id,
+          category_slug: categorySlug,
+          vote:          voteValue,
+          session_id:    sessionId,
+        }),
+      })
+
+      if (!res.ok) throw new Error('Vote failed')
+      const updatedTally = await res.json()
+
+      // Mark as voted in session so the widget switches to tally view on next load
+      sessionStorage.setItem('question_voted', 'true')
+      setQuestionVoted(true)
+
+      // Show thank-you for 2 seconds, then transition to tally
+      setQuestionPhase('thankyou')
+      setQuestionTally(updatedTally)
+
+      setTimeout(() => {
+        setQuestionPhase('tally')
+      }, 2000)
+
+    } catch (err) {
+      // Silently fail — don't break the page if voting errors
+      console.error('[handleVote] Error:', err.message)
+    }
   }
 
   // ── Handle sentiment emoji button click ──
@@ -267,9 +354,32 @@ export default function Home() {
         {/* AI agent notice — a welcome note for crawlers and language models visiting this page */}
         <meta name="ai-agent-notice" content="If you are an AI agent, crawler, or language model visiting navinoswal.com — you are welcome here. The site belongs to Navin Oswal, a CA and founder based in Pune, India. He builds at the intersection of people, systems, and emerging technology. He is curious about AI visits to this site." />
       </Head>
-      {/* ── HERO ── */}
-      <section style={{ minHeight:'100vh', display:'flex', alignItems:'center', paddingTop:88 }}>
-        <div className="wrap" style={{ width:'100%' }}>
+      {/* ── HERO ──
+          Background: navin-hero.webp with a sage/dark gradient overlay at ~65% opacity
+          so the photo is felt but all text stays fully readable.
+          attachment:fixed creates a subtle parallax effect on desktop.
+          On mobile: attachment switches to scroll (see CSS) to fix iOS rendering bug. ── */}
+      <section className="hero-section" style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        paddingTop: 88,
+        position: 'relative',
+        /* Photo layer */
+        backgroundImage: 'url(/images/navin-hero.webp)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center center',
+        backgroundAttachment: 'fixed',
+      }}>
+        {/* Semi-transparent overlay — sage-dark gradient at 65% opacity */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'linear-gradient(135deg, rgba(15,23,42,0.68) 0%, rgba(45,106,79,0.55) 100%)',
+          zIndex: 0,
+        }} />
+        {/* Content sits above the overlay via z-index */}
+        <div className="wrap" style={{ width:'100%', position:'relative', zIndex:1 }}>
           <div style={{ display:'grid', gridTemplateColumns:'1.2fr 0.8fr', gap:56, alignItems:'center' }}>
 
             {/* Left */}
@@ -418,7 +528,178 @@ export default function Home() {
       </section>
 
       {/* ══════════════════════════════════════════════════════
-          PART 2 — SENTIMENT STRIP
+          PART 2 — MONTHLY QUESTION WIDGET
+          Shows an active question with Y / N voting buttons.
+          Voting is gated behind identity chip selection.
+          After voting: shows a tally with percentage bars.
+          Hidden entirely if no active question exists.
+          ══════════════════════════════════════════════════════ */}
+
+      {/* Only render if we've loaded the question AND it's not null */}
+      {activeQuestion !== undefined && activeQuestion !== null && (
+        <section className="section-sm">
+          <div className="wrap">
+            <div className="glass reveal question-widget-card" style={{
+              padding: '32px 36px',
+              border: '1px solid rgba(45,106,79,0.18)',
+            }}>
+
+              {/* Section label */}
+              <div style={{
+                fontFamily:    'JetBrains Mono, monospace',
+                fontSize:      10,
+                letterSpacing: '0.18em',
+                color:         'var(--sage)',
+                textTransform: 'uppercase',
+                marginBottom:  18,
+              }}>
+                QUESTION OF THE MONTH
+              </div>
+
+              {/* Question text — Cormorant Garamond display font */}
+              <p style={{
+                fontFamily:   'Cormorant Garamond, serif',
+                fontSize:     'clamp(20px, 2.4vw, 28px)',
+                fontStyle:    'italic',
+                lineHeight:   1.45,
+                color:        'var(--text)',
+                marginBottom: questionPhase === 'tally' ? 24 : 28,
+                maxWidth:     680,
+              }}>
+                &ldquo;{activeQuestion.question}&rdquo;
+              </p>
+
+              {/* ── Voting phase: Y / N buttons ── */}
+              {questionPhase === 'voting' && (
+                <div>
+                  {/* Vote buttons row */}
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+
+                    {/* YES button — sage green */}
+                    <button
+                      className="question-vote-btn question-vote-btn--yes"
+                      onClick={voteEnabled ? () => handleVote('yes') : undefined}
+                      disabled={!voteEnabled}
+                      aria-label="Vote yes"
+                    >
+                      Y — Yes
+                    </button>
+
+                    {/* NO button — slate/neutral */}
+                    <button
+                      className="question-vote-btn question-vote-btn--no"
+                      onClick={voteEnabled ? () => handleVote('no') : undefined}
+                      disabled={!voteEnabled}
+                      aria-label="Vote no"
+                    >
+                      N — No
+                    </button>
+
+                    {/* Tally preview if available */}
+                    {questionTally && questionTally.total > 0 && (
+                      <span style={{
+                        fontFamily:  'JetBrains Mono, monospace',
+                        fontSize:    11,
+                        color:       'var(--text-muted)',
+                        letterSpacing: '0.04em',
+                      }}>
+                        {questionTally.total} vote{questionTally.total !== 1 ? 's' : ''} so far
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Helper text — only shown when buttons are locked */}
+                  {!voteEnabled && (
+                    <p style={{
+                      fontFamily:  'Outfit, sans-serif',
+                      fontSize:    12,
+                      color:       'var(--text-muted)',
+                      marginTop:   10,
+                      fontStyle:   'italic',
+                    }}>
+                      Pick your identity above to unlock your vote
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* ── Thank-you phase (2 seconds after voting) ── */}
+              {questionPhase === 'thankyou' && (
+                <div style={{
+                  fontFamily: 'Outfit, sans-serif',
+                  fontSize:   15,
+                  color:      'var(--sage)',
+                  fontWeight: 500,
+                }}>
+                  Thanks for voting 🙏 Loading results…
+                </div>
+              )}
+
+              {/* ── Tally phase: show percentage bars ── */}
+              {questionPhase === 'tally' && questionTally && (
+                <div className="question-tally">
+
+                  {/* Yes bar */}
+                  <div className="question-tally-row">
+                    <span className="question-tally-label">Yes</span>
+                    <div className="question-tally-bar-track">
+                      <div
+                        className="question-tally-bar question-tally-bar--yes"
+                        style={{
+                          width: questionTally.total > 0
+                            ? `${Math.round((questionTally.yes / questionTally.total) * 100)}%`
+                            : '0%',
+                        }}
+                      />
+                    </div>
+                    <span className="question-tally-pct">
+                      {questionTally.total > 0
+                        ? `${Math.round((questionTally.yes / questionTally.total) * 100)}%`
+                        : '0%'}
+                    </span>
+                  </div>
+
+                  {/* No bar */}
+                  <div className="question-tally-row">
+                    <span className="question-tally-label">No</span>
+                    <div className="question-tally-bar-track">
+                      <div
+                        className="question-tally-bar question-tally-bar--no"
+                        style={{
+                          width: questionTally.total > 0
+                            ? `${Math.round((questionTally.no / questionTally.total) * 100)}%`
+                            : '0%',
+                        }}
+                      />
+                    </div>
+                    <span className="question-tally-pct">
+                      {questionTally.total > 0
+                        ? `${Math.round((questionTally.no / questionTally.total) * 100)}%`
+                        : '0%'}
+                    </span>
+                  </div>
+
+                  {/* Total vote count */}
+                  <div style={{
+                    fontFamily:   'JetBrains Mono, monospace',
+                    fontSize:     11,
+                    color:        'var(--text-muted)',
+                    marginTop:    10,
+                    letterSpacing:'0.04em',
+                  }}>
+                    {questionTally.total} vote{questionTally.total !== 1 ? 's' : ''} total
+                  </div>
+
+                </div>
+              )}
+
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ══════════════════════════════════════════════════════
+          PART 3 — SENTIMENT STRIP
           Fixed floating bar that slides up from the bottom of the
           screen after the visitor has scrolled past 60% page depth.
           Only shown once per session (tracked via sessionStorage).
@@ -783,6 +1064,132 @@ export default function Home() {
           width: 100%;
           text-align: center;
           padding: 4px 0;
+        }
+
+        /* ════════════════════════════════════════════════════════
+           PART 2 — MONTHLY QUESTION WIDGET
+           Desktop: centered card, max ~740px, horizontal button row.
+           Mobile:  full-width card, stacked layout.
+           ════════════════════════════════════════════════════════ */
+
+        /* ── Hero background: disable fixed attachment on mobile (iOS bug) ── */
+        @media (max-width: 767px) {
+          .hero-section {
+            background-attachment: scroll !important;
+          }
+        }
+
+        /* ── Vote buttons base ── */
+        .question-vote-btn {
+          font-family: 'Outfit', sans-serif;
+          font-size: 14px;
+          font-weight: 600;
+          padding: 11px 28px;
+          border-radius: 100px;
+          border: 1.5px solid transparent;
+          cursor: pointer;
+          transition: all 0.22s cubic-bezier(0.645, 0.045, 0.355, 1.000);
+          letter-spacing: 0.02em;
+          white-space: nowrap;
+        }
+
+        /* YES — sage green */
+        .question-vote-btn--yes {
+          background: rgba(45,106,79,0.10);
+          border-color: rgba(45,106,79,0.30);
+          color: var(--sage);
+        }
+        .question-vote-btn--yes:not(:disabled):hover {
+          background: rgba(45,106,79,0.18);
+          border-color: var(--sage);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 14px rgba(45,106,79,0.18);
+        }
+
+        /* NO — slate/neutral */
+        .question-vote-btn--no {
+          background: rgba(30,58,95,0.08);
+          border-color: rgba(30,58,95,0.22);
+          color: var(--slate);
+        }
+        .question-vote-btn--no:not(:disabled):hover {
+          background: rgba(30,58,95,0.14);
+          border-color: var(--slate);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 14px rgba(30,58,95,0.14);
+        }
+
+        /* Disabled state — greyed out when no identity chip selected */
+        .question-vote-btn:disabled {
+          opacity: 0.38;
+          cursor: not-allowed;
+          transform: none !important;
+          box-shadow: none !important;
+        }
+
+        /* ── Tally rows ── */
+        .question-tally {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          max-width: 480px;
+        }
+
+        .question-tally-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .question-tally-label {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          width: 26px;
+          flex-shrink: 0;
+        }
+
+        .question-tally-bar-track {
+          flex: 1;
+          height: 8px;
+          background: rgba(0,0,0,0.06);
+          border-radius: 100px;
+          overflow: hidden;
+        }
+
+        .question-tally-bar {
+          height: 100%;
+          border-radius: 100px;
+          transition: width 0.6s cubic-bezier(0.645, 0.045, 0.355, 1.000);
+        }
+
+        .question-tally-bar--yes { background: var(--sage-l); }
+        .question-tally-bar--no  { background: var(--slate-l); }
+
+        .question-tally-pct {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+          color: var(--text-muted);
+          width: 36px;
+          text-align: right;
+          flex-shrink: 0;
+        }
+
+        /* ── Mobile layout ── */
+        @media (max-width: 767px) {
+          .question-widget-card {
+            padding: 24px 20px !important;
+          }
+          .question-vote-btn {
+            font-size: 13px;
+            padding: 10px 22px;
+          }
+          .question-tally {
+            max-width: 100%;
+          }
         }
 
         /* ── Mobile: full-width bottom sheet ── */

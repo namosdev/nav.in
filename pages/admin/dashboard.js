@@ -44,6 +44,13 @@ const navCards = [
     desc:  'Update the AI building stack tools and lessons you share publicly.',
     color: '#7c3aed',
   },
+  {
+    href:  '/admin/homepage',
+    icon:  '🏠',
+    title: 'Homepage',
+    desc:  'Update monthly question · View vote tally',
+    color: '#2d6a4f',
+  },
 ]
 
 export default function AdminDashboard() {

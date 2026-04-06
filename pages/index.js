@@ -356,27 +356,25 @@ export default function Home() {
       </Head>
       {/* ══════════════════════════════════════════════════════
           PHOTO ZONE — unified atmospheric background
-          One continuous background covers: hero + identity chips + question widget.
-          Two overlay layers: (1) directional dark tint for readability,
-          (2) a separate bottom fade that dissolves the photo into the page
-          background before the stats section begins.
-          The wrapper div closes immediately after the question widget.
+          navin-hero.webp sits behind hero + visitor widget + question widget.
+          A near-white overlay reduces the photo to ~10-15% visibility —
+          pure atmosphere, warmth, and texture. Text reads naturally over it.
+          Face is handled by the avatar <img> inside the content, not the photo.
           ══════════════════════════════════════════════════════ */}
       <div className="photo-zone" style={{
         position: 'relative',
         backgroundImage: 'url(/images/navin-hero.webp)',
         backgroundSize: 'cover',
-        backgroundPosition: '70% 15%',
+        backgroundPosition: 'center top',
         backgroundAttachment: 'fixed',
       }}>
 
-        {/* ── Overlay: single subtle tint ──
-            Light sage-dark wash that lets the photo breathe.
-            The glass panel on the hero text handles text readability,
-            so the overlay only needs to add a gentle atmospheric mood. */}
+        {/* ── Overlay: near-white sage-tinted wash ──
+            rgba(245,248,245,0.82) reduces photo visibility to ~10-15%,
+            giving the page warmth without any photo competing with text. */}
         <div aria-hidden="true" style={{
           position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
-          background: 'linear-gradient(to bottom, rgba(15,30,20,0.35) 0%, rgba(15,30,20,0.15) 55%, transparent 100%)',
+          background: 'rgba(245,248,245,0.82)',
         }} />
 
         {/* ── Bottom fade: transparent → page white ──
@@ -400,51 +398,59 @@ export default function Home() {
         <div className="wrap" style={{ width:'100%', position:'relative', zIndex:1 }}>
           <div style={{ display:'grid', gridTemplateColumns:'1.2fr 0.8fr', gap:56, alignItems:'center' }}>
 
-            {/* Left — text content sits inside a frosted glass panel.
-                The glass panel handles readability against the photo so no
-                text shadows are needed. Right column / face is visible beyond. */}
+            {/* Left */}
             <div>
-              <div className="hero-glass-panel" style={{
-                background: 'rgba(255,255,255,0.12)',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: 16,
-                padding: 32,
+              {/* ── Avatar — circular photo of Navin, sits above the tag badges.
+                  Face visibility is handled here, not by the background photo. ── */}
+              <div className="reveal" style={{ marginBottom:24 }}>
+                <img
+                  src="/images/navin-profile-avatar.webp"
+                  alt="Navin Oswal"
+                  className="hero-avatar"
+                  style={{
+                    width:88, height:88,
+                    borderRadius:'50%',
+                    objectFit:'cover',
+                    objectPosition:'center top',
+                    border:'2px solid rgba(82,183,136,0.4)',
+                    boxShadow:'0 4px 16px rgba(0,0,0,0.12)',
+                    display:'block',
+                  }}
+                />
+              </div>
+
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:28 }} className="reveal">
+                <span className="chip chip-sage"><span className="dot"/>CA · 15,000 deliberate hours</span>
+                <span className="chip chip-amber">Co-Founder · UNITS &amp; UNIVEN</span>
+                <span className="chip chip-slate">Pune, Maharashtra</span>
+              </div>
+
+              <h1 className="reveal" style={{
+                fontFamily:'Cormorant Garamond, serif',
+                fontSize:'clamp(52px, 5.8vw, 82px)',
+                fontWeight:600, lineHeight:1.0,
+                letterSpacing:'-0.025em', marginBottom:10
               }}>
-                <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:28 }} className="reveal">
-                  <span className="chip chip-sage"><span className="dot"/>CA · 15,000 deliberate hours</span>
-                  <span className="chip chip-amber">Co-Founder · UNITS &amp; UNIVEN</span>
-                  <span className="chip chip-slate">Pune, Maharashtra</span>
-                </div>
+                Curious<br/>by Nature.
+              </h1>
+              <div className="reveal" style={{
+                fontFamily:'Cormorant Garamond, serif',
+                fontSize:'clamp(22px, 2.8vw, 34px)',
+                fontStyle:'italic', color:'var(--sage)', marginBottom:28
+              }}>
+                Optimist by Choice.
+              </div>
 
-                <h1 className="reveal" style={{
-                  fontFamily:'Cormorant Garamond, serif',
-                  fontSize:'clamp(52px, 5.8vw, 82px)',
-                  fontWeight:600, lineHeight:1.0,
-                  letterSpacing:'-0.025em', marginBottom:10,
-                }}>
-                  Curious<br/>by Nature.
-                </h1>
-                <div className="reveal" style={{
-                  fontFamily:'Cormorant Garamond, serif',
-                  fontSize:'clamp(22px, 2.8vw, 34px)',
-                  fontStyle:'italic', color:'var(--sage)', marginBottom:28,
-                }}>
-                  Optimist by Choice.
-                </div>
+              <p className="reveal" style={{ fontSize:16, lineHeight:1.8, color:'var(--text-mid)', maxWidth:520, marginBottom:40 }}>
+                Chartered accountant. A decade of <strong>patiently compounding</strong> inside
+                real estate & finance. Four private failed attempts at making life easier for
+                businesses in India — each failing the <strong>execution + validation test.</strong> Now,
+                on attempt five, I finally understand the difference between willingness and decisiveness.
+              </p>
 
-                <p className="reveal" style={{ fontSize:16, lineHeight:1.8, color:'var(--text-mid)', maxWidth:520, marginBottom:40 }}>
-                  Chartered accountant. A decade of <strong>patiently compounding</strong> inside
-                  real estate & finance. Four private failed attempts at making life easier for
-                  businesses in India — each failing the <strong>execution + validation test.</strong> Now,
-                  on attempt five, I finally understand the difference between willingness and decisiveness.
-                </p>
-
-                <div className="reveal" style={{ display:'flex', gap:14, flexWrap:'wrap' }}>
-                  <Link href="/about" className="btn-primary">Read my story →</Link>
-                  <Link href="/ventures" className="btn-ghost">What I&apos;m building ↗</Link>
-                </div>
+              <div className="reveal" style={{ display:'flex', gap:14, flexWrap:'wrap' }}>
+                <Link href="/about" className="btn-primary">Read my story →</Link>
+                <Link href="/ventures" className="btn-ghost">What I&apos;m building ↗</Link>
               </div>
             </div>
 
@@ -1114,10 +1120,11 @@ export default function Home() {
           }
         }
 
-        /* ── Hero glass panel: full-width + tighter padding on mobile ── */
-        @media (max-width: 860px) {
-          .hero-glass-panel {
-            padding: 20px !important;
+        /* ── Hero avatar: smaller on mobile ── */
+        @media (max-width: 767px) {
+          .hero-avatar {
+            width: 72px !important;
+            height: 72px !important;
           }
         }
 

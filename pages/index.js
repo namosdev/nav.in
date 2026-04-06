@@ -67,11 +67,11 @@ export default function Home() {
   // showFloater: controls the all-time stats floater (hover on desktop, tap on mobile)
   const [showFloater, setShowFloater]   = useState(false)
 
-  // Session gate — first-time visitors (no 'cardSeen' flag) are redirected
-  // to /card. The card sets the flag in sessionStorage when the user exits,
-  // so subsequent visits within the same browser session go straight to /.
+  // Session gate — backup check (the inline <script> in <Head> handles the
+  // primary redirect before React hydrates, eliminating the flash of content).
+  // This useEffect is a safety net in case the inline script didn't fire.
   useEffect(() => {
-    if (typeof window !== 'undefined' && !sessionStorage.getItem('cardSeen')) {
+    if (typeof window !== 'undefined' && !sessionStorage.getItem('hasVisitedCard')) {
       router.replace('/card')
     }
   }, [])
@@ -139,6 +139,20 @@ export default function Home() {
 
       {/* ── META TAGS ── */}
       <Head>
+        {/* ── Session gate — synchronous redirect before first paint ──
+            Runs during HTML parsing, before React hydrates, so the visitor
+            never sees a flash of the homepage before being sent to /card.
+            Uses window.location.replace (not href) so Back button works. */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          (function() {
+            try {
+              if (!sessionStorage.getItem('hasVisitedCard')) {
+                window.location.replace('/card');
+              }
+            } catch(e) {}
+          })();
+        ` }} />
+
         {/* Canonical URL — tells search engines the preferred version of this page */}
         <link rel="canonical" href="https://navinoswal.com" />
 

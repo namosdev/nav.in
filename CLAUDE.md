@@ -83,9 +83,15 @@ These exist in .env.local (never commit this file):
 - Design system locked
 - Admin panel Phase 1 (auth + dashboard + meeting requests viewer)
 - Visiting Card ✅ COMPLETE — live at navinoswal.com/card, file at /public/card/index.html. Card is the session gate — first visit to / redirects to /card via sessionStorage check. Flag set on card exit.
+  - Bug fix: "Explore his story" link now uses a relative URL (/) instead of a hardcoded absolute URL, fixing the www vs non-www sessionStorage mismatch.
 
 ### In Progress
 - Admin panel security hardening (fix/admin-email-restriction)
+- Phase 2A:
+  - Personal photo: static image in /public/images/, displayed in homepage hero
+  - Monthly question widget: Supabase-backed, visitors vote, admin-editable
+  - Admin form at /admin/homepage: for updating the monthly question and viewing responses
+  - Two new Supabase tables needed: homepage_widget and question_responses
 
 ### Planned
 - Phase 3: Admin edit forms for Now, Ventures, Stack

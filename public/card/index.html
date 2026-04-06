@@ -75,9 +75,13 @@ body::before {
   height: 100%;
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
-  transition: transform 0.7s ease;
+  /* Enhancement 1: smoother easing curve gives a more physical card feel */
+  transition: transform 0.85s cubic-bezier(0.645, 0.045, 0.355, 1.000);
+  /* Explicit resting state so both axes interpolate cleanly during flip */
+  transform: rotateY(0deg) rotateX(0deg);
 }
-#scene.flipped { transform: rotateY(180deg); }
+/* Enhancement 1: slight X tilt on flipped state — card feels like it settled at an angle */
+#scene.flipped { transform: rotateY(180deg) rotateX(2deg); }
 
 /* ── Shared face rules ── */
 /* Both faces: position:absolute so they occupy the exact same space (stacked).*/
@@ -362,6 +366,63 @@ body::before {
   box-shadow: 0 0 24px rgba(82,183,136,0.65);
   animation: none;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   ENHANCEMENT 4 — Ambient background orbs
+   Three large blurred orbs drift slowly behind the card.
+   Elements are created via JS; keyframes are defined here.
+   ───────────────────────────────────────────────────────────── */
+
+/* Orb 1 (sage): top-left → slightly right/down, 18 s loop */
+@keyframes orb1-drift {
+  from { transform: translate(-100px, -100px); }
+  to   { transform: translate(50px, 80px); }
+}
+/* Orb 2 (amber): bottom-right, drifts left/down, 22 s loop */
+@keyframes orb2-drift {
+  from { transform: translate(0px, 0px); }
+  to   { transform: translate(-150px, 100px); }
+}
+/* Orb 3 (slate teal): top-right, drifts left/down, 26 s loop */
+@keyframes orb3-drift {
+  from { transform: translate(0px, 0px); }
+  to   { transform: translate(-200px, 20vh); }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ENHANCEMENT 5 — Glow intensifies during flip
+   card-wrapper gains a box-shadow while .flipping is active.
+   Base transition ensures it fades smoothly out when removed.
+   ───────────────────────────────────────────────────────────── */
+.card-wrapper          { transition: box-shadow 0.85s ease; }
+.card-wrapper.flipping { box-shadow: 0 0 40px rgba(82,183,136,0.3), 0 0 80px rgba(82,183,136,0.1); }
+
+/* ─────────────────────────────────────────────────────────────
+   ENHANCEMENT 2 — Click ripple
+   Ripple div is spawned by JS at click coords inside .card-wrapper.
+   transform: translate(-50%,-50%) keeps it centred on the click point
+   as it expands, so only width/height/opacity need to animate.
+   ───────────────────────────────────────────────────────────── */
+@keyframes ripple-expand {
+  from { width: 0;     height: 0;     opacity: 0.6; }
+  to   { width: 200px; height: 200px; opacity: 0;   }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ENHANCEMENT 3 — Particle scatter
+   Each particle uses CSS custom properties --dx / --dy (set inline
+   by JS) as its unique travel endpoint, so one keyframe covers all.
+   ───────────────────────────────────────────────────────────── */
+@keyframes particle-fly {
+  from {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0);
+    opacity: 0;
+  }
+}
 </style>
 </head>
 <body>
@@ -496,11 +557,130 @@ body::before {
 </div><!-- /card-wrapper -->
 
 <script>
-let isFlipped = false;
+/* ── State ── */
+let isFlipped    = false;
+let _settleTimers = [];   /* track pending settle timers so rapid re-flips stay clean */
 
-function flipCard() {
-  isFlipped = !isFlipped;
-  document.getElementById('scene').classList.toggle('flipped', isFlipped);
+/* ─────────────────────────────────────────────────────────────
+   ENHANCEMENT 2 helper — spawn a ripple at the click point
+   Ripple is absolutely positioned inside .card-wrapper so it
+   clips naturally to the card bounds.
+   ───────────────────────────────────────────────────────────── */
+function _spawnRipple(e, wrapper) {
+  const rect   = wrapper.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;   /* x relative to card-wrapper */
+  const clickY = e.clientY - rect.top;    /* y relative to card-wrapper */
+
+  const ripple = document.createElement('div');
+  /* translate(-50%,-50%) keeps the centre anchored on the click point
+     as width/height grow from 0 → 200px */
+  ripple.style.cssText =
+    'position:absolute;pointer-events:none;border-radius:50%;' +
+    'border:1.5px solid rgba(82,183,136,0.7);' +
+    'left:' + clickX + 'px;top:' + clickY + 'px;' +
+    'transform:translate(-50%,-50%);' +
+    'animation:ripple-expand 420ms ease-out forwards;' +
+    'z-index:10;';
+  wrapper.appendChild(ripple);
+  setTimeout(() => ripple.remove(), 440);   /* remove after animation done */
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ENHANCEMENT 3 helper — scatter 14 particles from card centre
+   Particles use fixed positioning centred on the viewport middle
+   (= card centre) so 3-D transforms on the card don't shift them.
+   ───────────────────────────────────────────────────────────── */
+function _spawnParticles() {
+  const COUNT = 14;
+  const cx    = window.innerWidth  / 2;
+  const cy    = window.innerHeight / 2;
+
+  for (let i = 0; i < COUNT; i++) {
+    /* Spread evenly around 360°, add small random offset per particle */
+    const angle  = (i * (360 / COUNT) + (Math.random() * 20 - 10)) * (Math.PI / 180);
+    const dist   = 40 + Math.random() * 40;            /* 40–80 px travel */
+    const size   = 3  + Math.random() * 2;             /* 3–5 px diameter */
+    const colour = (i % 2 === 0)
+      ? 'rgba(82,183,136,0.9)'    /* sage  */
+      : 'rgba(251,191,36,0.8)';   /* amber */
+
+    const p = document.createElement('div');
+    p.className = 'scatter-particle';
+    p.style.cssText =
+      'position:fixed;pointer-events:none;border-radius:50%;' +
+      'width:'  + size + 'px;height:' + size + 'px;' +
+      'background:' + colour + ';' +
+      'left:' + cx + 'px;top:' + cy + 'px;' +
+      'animation:particle-fly 500ms ease-out forwards;' +
+      'z-index:20;';
+    /* CSS custom properties for the unique travel endpoint */
+    p.style.setProperty('--dx', (Math.cos(angle) * dist).toFixed(1) + 'px');
+    p.style.setProperty('--dy', (Math.sin(angle) * dist).toFixed(1) + 'px');
+
+    document.body.appendChild(p);
+  }
+  /* Sweep all particles after animation + small buffer */
+  setTimeout(() => {
+    document.querySelectorAll('.scatter-particle').forEach(p => p.remove());
+  }, 600);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Enhanced flipCard
+   ① Spawns ripple at click coords (Enhancement 2)
+   ② Adds .flipping glow class (Enhancement 5)
+   ③ Delays actual flip 60 ms so ripple is visible first
+   ④ Spawns particles at 420 ms — flip midpoint (Enhancement 3)
+   ⑤ Runs micro-settle after flip completes (Enhancement 1)
+   ───────────────────────────────────────────────────────────── */
+function flipCard(e) {
+  /* Clear timers from any previous in-flight flip */
+  _settleTimers.forEach(t => clearTimeout(t));
+  _settleTimers = [];
+
+  const scene   = document.getElementById('scene');
+  const wrapper = document.querySelector('.card-wrapper');
+
+  /* Enhancement 2: ripple before flip */
+  if (e && e.clientX !== undefined) _spawnRipple(e, wrapper);
+
+  /* Enhancement 5: intensify glow while flip is in progress */
+  wrapper.classList.add('flipping');
+
+  /* Delay the actual flip 60 ms — ripple has a head-start */
+  _settleTimers.push(setTimeout(() => {
+    isFlipped = !isFlipped;
+    scene.classList.toggle('flipped', isFlipped);
+  }, 60));
+
+  /* Enhancement 3: particles fire at flip midpoint (420 ms after click) */
+  _settleTimers.push(setTimeout(() => _spawnParticles(), 420));
+
+  /* Enhancement 1: micro-settle fires when flip transition ends (60 ms delay + 850 ms) */
+  _settleTimers.push(setTimeout(() => {
+    if (isFlipped) {
+      /* Tilt 1 extra degree in 80 ms — card "lands" on the table */
+      scene.style.transition = 'transform 80ms ease';
+      scene.style.transform  = 'rotateY(180deg) rotateX(3deg)';
+
+      _settleTimers.push(setTimeout(() => {
+        /* Spring back to 2 deg in 120 ms */
+        scene.style.transition = 'transform 120ms ease';
+        scene.style.transform  = 'rotateY(180deg) rotateX(2deg)';
+
+        _settleTimers.push(setTimeout(() => {
+          /* Restore CSS-defined transition and let the class rule take over */
+          scene.style.transition = '';
+          scene.style.transform  = '';
+        }, 130));   /* slight buffer after 120 ms spring-back */
+      }, 80));
+    }
+  }, 60 + 850));
+
+  /* Enhancement 5: remove glow once flip is complete */
+  _settleTimers.push(setTimeout(() => {
+    wrapper.classList.remove('flipping');
+  }, 60 + 850));
 }
 
 /* ── Canvas particles ── */
@@ -570,6 +750,51 @@ at(3850,() => css('tagline',{opacity:'1',transform:'translateY(0)'}));
 at(4100,() => css('tags',{opacity:'1'}));
 at(4350,() => css('monogram',{opacity:'1',transform:'scale(1)'}));
 at(4800,() => css('flip-hint',{opacity:'1'}));
+
+/* ─────────────────────────────────────────────────────────────
+   ENHANCEMENT 4 — Create ambient background orbs via JS
+   Three large blurred orbs sit behind the card (z-index 0) and
+   drift slowly in alternating CSS animations for depth.
+   Card wrapper is at z-index 3, always above orbs.
+   ───────────────────────────────────────────────────────────── */
+(function createOrbs() {
+  /* Orb descriptor: [className, inlineCSS] */
+  var orbDefs = [
+    /* Sage orb — top-left, drifts gently right/down, 18 s */
+    ['bg-orb-1',
+      'position:fixed;pointer-events:none;z-index:0;border-radius:50%;filter:blur(80px);' +
+      'width:500px;height:500px;background:rgba(45,106,79,0.18);' +
+      'top:0;left:0;' +
+      'animation:orb1-drift 18s ease-in-out infinite alternate;'],
+    /* Amber orb — bottom-right, drifts left/down, 22 s, starts mid-cycle */
+    ['bg-orb-2',
+      'position:fixed;pointer-events:none;z-index:0;border-radius:50%;filter:blur(80px);' +
+      'width:400px;height:400px;background:rgba(180,83,9,0.12);' +
+      'left:calc(100vw - 200px);top:calc(100vh - 200px);' +
+      'animation:orb2-drift 22s ease-in-out infinite alternate;animation-delay:-8s;'],
+    /* Slate-teal orb — top-right, drifts left/down, 26 s, offset from orb 2 */
+    ['bg-orb-3',
+      'position:fixed;pointer-events:none;z-index:0;border-radius:50%;filter:blur(80px);' +
+      'width:350px;height:350px;background:rgba(30,58,95,0.2);' +
+      'left:calc(100vw - 100px);top:20%;' +
+      'animation:orb3-drift 26s ease-in-out infinite alternate;animation-delay:-14s;'],
+  ];
+  orbDefs.forEach(function(def) {
+    var el = document.createElement('div');
+    el.className   = def[0];
+    el.style.cssText = def[1];
+    /* Insert before the canvas so orbs stay behind everything */
+    document.body.insertBefore(el, document.body.firstChild);
+  });
+})();
+
+/* ─────────────────────────────────────────────────────────────
+   Override onclick handlers on the flip triggers so that
+   the event object is passed to flipCard() — needed for the
+   ripple to read click coordinates (Enhancement 2).
+   ───────────────────────────────────────────────────────────── */
+document.getElementById('flip-hint').onclick = function(e) { flipCard(e); };
+document.getElementById('back-flip').onclick  = function(e) { flipCard(e); };
 </script>
 </body>
 </html>

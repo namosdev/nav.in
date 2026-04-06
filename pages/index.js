@@ -366,28 +366,26 @@ export default function Home() {
         position: 'relative',
         backgroundImage: 'url(/images/navin-hero.webp)',
         backgroundSize: 'cover',
-        backgroundPosition: 'center top',
+        backgroundPosition: '70% 15%',
         backgroundAttachment: 'fixed',
       }}>
 
-        {/* ── Overlay Layer 1: directional dark tint ──
-            Dense sage-dark at the very top (hero headline zone) where contrast
-            matters most, easing to a lighter tint in the widget zone (35%),
-            then fading to nothing before the bottom-fade layer takes over. */}
+        {/* ── Overlay: single subtle tint ──
+            Light sage-dark wash that lets the photo breathe.
+            The glass panel on the hero text handles text readability,
+            so the overlay only needs to add a gentle atmospheric mood. */}
         <div aria-hidden="true" style={{
           position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
-          background: 'linear-gradient(to bottom, rgba(15,23,42,0.55) 0%, rgba(45,106,79,0.30) 50%, rgba(15,23,42,0.10) 76%, transparent 100%)',
+          background: 'linear-gradient(to bottom, rgba(15,30,20,0.35) 0%, rgba(15,30,20,0.15) 55%, transparent 100%)',
         }} />
 
-        {/* ── Overlay Layer 2: bottom fade to page white ──
-            Covers the bottom 30% of the photo zone, progressively dissolving
-            the image into the white page background.
-            Stats section below sees zero photo bleed because this reaches
-            full white (#ffffff) before the zone ends. */}
+        {/* ── Bottom fade: transparent → page white ──
+            Covers the bottom 20% of the photo zone so the image dissolves
+            cleanly into the page background before the stats section begins. */}
         <div aria-hidden="true" style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, height: '30%',
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: '20%',
           zIndex: 0, pointerEvents: 'none',
-          background: 'linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.88) 72%, #ffffff 100%)',
+          background: 'linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.9) 70%, #ffffff 100%)',
         }} />
 
         {/* ── HERO ── all content sits at zIndex 1 above the overlay layers ── */}
@@ -402,43 +400,51 @@ export default function Home() {
         <div className="wrap" style={{ width:'100%', position:'relative', zIndex:1 }}>
           <div style={{ display:'grid', gridTemplateColumns:'1.2fr 0.8fr', gap:56, alignItems:'center' }}>
 
-            {/* Left */}
+            {/* Left — text content sits inside a frosted glass panel.
+                The glass panel handles readability against the photo so no
+                text shadows are needed. Right column / face is visible beyond. */}
             <div>
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:28 }} className="reveal">
-                <span className="chip chip-sage"><span className="dot"/>CA · 15,000 deliberate hours</span>
-                <span className="chip chip-amber">Co-Founder · UNITS &amp; UNIVEN</span>
-                <span className="chip chip-slate">Pune, Maharashtra</span>
-              </div>
-
-              <h1 className="reveal" style={{
-                fontFamily:'Cormorant Garamond, serif',
-                fontSize:'clamp(52px, 5.8vw, 82px)',
-                fontWeight:600, lineHeight:1.0,
-                letterSpacing:'-0.025em', marginBottom:10,
-                /* White halo shadow keeps dark text crisp on the photo overlay */
-                textShadow:'0 0 32px rgba(255,255,255,0.80), 0 2px 10px rgba(255,255,255,0.55)',
+              <div className="hero-glass-panel" style={{
+                background: 'rgba(255,255,255,0.12)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 16,
+                padding: 32,
               }}>
-                Curious<br/>by Nature.
-              </h1>
-              <div className="reveal" style={{
-                fontFamily:'Cormorant Garamond, serif',
-                fontSize:'clamp(22px, 2.8vw, 34px)',
-                fontStyle:'italic', color:'var(--sage)', marginBottom:28,
-                textShadow:'0 0 24px rgba(255,255,255,0.85), 0 2px 8px rgba(255,255,255,0.55)',
-              }}>
-                Optimist by Choice.
-              </div>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:28 }} className="reveal">
+                  <span className="chip chip-sage"><span className="dot"/>CA · 15,000 deliberate hours</span>
+                  <span className="chip chip-amber">Co-Founder · UNITS &amp; UNIVEN</span>
+                  <span className="chip chip-slate">Pune, Maharashtra</span>
+                </div>
 
-              <p className="reveal" style={{ fontSize:16, lineHeight:1.8, color:'var(--text-mid)', maxWidth:520, marginBottom:40, textShadow:'0 0 20px rgba(255,255,255,0.9), 0 1px 6px rgba(255,255,255,0.6)' }}>
-                Chartered accountant. A decade of <strong>patiently compounding</strong> inside
-                real estate & finance. Four private failed attempts at making life easier for
-                businesses in India — each failing the <strong>execution + validation test.</strong> Now,
-                on attempt five, I finally understand the difference between willingness and decisiveness.
-              </p>
+                <h1 className="reveal" style={{
+                  fontFamily:'Cormorant Garamond, serif',
+                  fontSize:'clamp(52px, 5.8vw, 82px)',
+                  fontWeight:600, lineHeight:1.0,
+                  letterSpacing:'-0.025em', marginBottom:10,
+                }}>
+                  Curious<br/>by Nature.
+                </h1>
+                <div className="reveal" style={{
+                  fontFamily:'Cormorant Garamond, serif',
+                  fontSize:'clamp(22px, 2.8vw, 34px)',
+                  fontStyle:'italic', color:'var(--sage)', marginBottom:28,
+                }}>
+                  Optimist by Choice.
+                </div>
 
-              <div className="reveal" style={{ display:'flex', gap:14, flexWrap:'wrap' }}>
-                <Link href="/about" className="btn-primary">Read my story →</Link>
-                <Link href="/ventures" className="btn-ghost">What I&apos;m building ↗</Link>
+                <p className="reveal" style={{ fontSize:16, lineHeight:1.8, color:'var(--text-mid)', maxWidth:520, marginBottom:40 }}>
+                  Chartered accountant. A decade of <strong>patiently compounding</strong> inside
+                  real estate & finance. Four private failed attempts at making life easier for
+                  businesses in India — each failing the <strong>execution + validation test.</strong> Now,
+                  on attempt five, I finally understand the difference between willingness and decisiveness.
+                </p>
+
+                <div className="reveal" style={{ display:'flex', gap:14, flexWrap:'wrap' }}>
+                  <Link href="/about" className="btn-primary">Read my story →</Link>
+                  <Link href="/ventures" className="btn-ghost">What I&apos;m building ↗</Link>
+                </div>
               </div>
             </div>
 
@@ -1105,6 +1111,13 @@ export default function Home() {
         @media (max-width: 767px) {
           .photo-zone {
             background-attachment: scroll !important;
+          }
+        }
+
+        /* ── Hero glass panel: full-width + tighter padding on mobile ── */
+        @media (max-width: 860px) {
+          .hero-glass-panel {
+            padding: 20px !important;
           }
         }
 

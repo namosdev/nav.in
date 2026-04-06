@@ -5,7 +5,7 @@ const CATEGORY_SLUGS = [
   'founder-builder',
   'strategic-partner',
   'real-estate',
-  'fellow-builder',
+  'fellow-maker',
   'just-curious',
 ]
 

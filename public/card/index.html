@@ -55,41 +55,53 @@ body::before {
   transition:opacity 1.2s ease, transform 1.2s cubic-bezier(0.16,1,0.3,1);
 }
 
-/* ── Card wrapper — constrains width, applies perspective ── */
-/* NOTE: overflow:hidden is intentionally omitted — it flattens the 3D stacking
-   context in WebKit/Chrome, causing backface-visibility to stop working and
-   the back face text to appear mirrored. The perspective naturally contains
-   the visual bounds of the flip. */
+/* ── Card wrapper — immediate parent of the flip container; holds perspective ── */
+/* perspective must be on the direct parent of the flip container (#scene).    */
+/* overflow:hidden intentionally omitted — it flattens 3D context in WebKit.  */
 .card-wrapper {
   position: relative;
   width: 67vw;
   height: 90vh;
-  perspective: 1800px;
+  perspective: 1000px;
   z-index: 3;
 }
 
-/* ── Scene (3D flip element — lives inside card wrapper) ── */
-/* transform-style:preserve-3d makes the children part of the same 3D scene. */
-/* Both webkit prefix and standard property are required for Safari. */
+/* ── Scene — the flip container; rotates on click ── */
+/* Must be position:relative with explicit width/height so both faces stack.   */
+/* transform-style:preserve-3d is set here and ONLY here — not on the faces.  */
 #scene {
-  position: absolute; inset: 0;
+  position: relative;
+  width: 100%;
+  height: 100%;
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
-  transition: transform 0.85s cubic-bezier(0.4,0,0.2,1);
+  transition: transform 0.7s ease;
 }
-#scene.flipped { transform:rotateY(180deg); }
+#scene.flipped { transform: rotateY(180deg); }
 
-/* ── Faces — fill the card wrapper ── */
-/* backface-visibility:hidden hides each face when it is rotated past 90deg. */
-/* The back face has transform:rotateY(180deg) as its DEFAULT (resting) state  */
-/* so its content reads normally after the parent flips 180deg. No additional  */
-/* rotation is applied to any element INSIDE the face divs.                    */
+/* ── Shared face rules ── */
+/* Both faces: position:absolute so they occupy the exact same space (stacked).*/
+/* backface-visibility:hidden hides a face once it rotates past 90deg.         */
+/* No transform-style:preserve-3d on faces — only the flip container gets it.  */
 .face {
-  position: absolute; inset: 0;
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   display: flex; flex-direction: column; justify-content: center;
 }
+
+/* Front face: explicit rotateY(0deg) is required — without it, backface-      */
+/* visibility:hidden does not engage in Safari and some Chrome versions,        */
+/* causing the front to bleed through when the back face is showing.            */
+.face-front {
+  transform: rotateY(0deg);
+  -webkit-transform: rotateY(0deg);
+}
+
+/* Back face: rotateY(180deg) is its resting position; after the parent flips  */
+/* 180deg the total rotation is 360deg = 0, so text reads normally.             */
 .face-back {
   transform: rotateY(180deg);
   -webkit-transform: rotateY(180deg);

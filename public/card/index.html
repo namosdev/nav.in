@@ -55,32 +55,45 @@ body::before {
   transition:opacity 1.2s ease, transform 1.2s cubic-bezier(0.16,1,0.3,1);
 }
 
-/* ── Card wrapper — constrains width, clips the flip animation ── */
+/* ── Card wrapper — constrains width, applies perspective ── */
+/* NOTE: overflow:hidden is intentionally omitted — it flattens the 3D stacking
+   context in WebKit/Chrome, causing backface-visibility to stop working and
+   the back face text to appear mirrored. The perspective naturally contains
+   the visual bounds of the flip. */
 .card-wrapper {
   position: relative;
   width: 67vw;
   height: 90vh;
   perspective: 1800px;
-  overflow: hidden;
   z-index: 3;
 }
 
 /* ── Scene (3D flip element — lives inside card wrapper) ── */
+/* transform-style:preserve-3d makes the children part of the same 3D scene. */
+/* Both webkit prefix and standard property are required for Safari. */
 #scene {
   position: absolute; inset: 0;
   transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
   transition: transform 0.85s cubic-bezier(0.4,0,0.2,1);
 }
 #scene.flipped { transform:rotateY(180deg); }
 
 /* ── Faces — fill the card wrapper ── */
+/* backface-visibility:hidden hides each face when it is rotated past 90deg. */
+/* The back face has transform:rotateY(180deg) as its DEFAULT (resting) state  */
+/* so its content reads normally after the parent flips 180deg. No additional  */
+/* rotation is applied to any element INSIDE the face divs.                    */
 .face {
   position: absolute; inset: 0;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   display: flex; flex-direction: column; justify-content: center;
 }
-.face-back { transform:rotateY(180deg); }
+.face-back {
+  transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
+}
 
 /* ── Mobile: wider card, taller card ── */
 @media (max-width: 767px) {
@@ -189,16 +202,30 @@ body::before {
 }
 @keyframes shimmer { 0%,100%{opacity:0.35;transform:scaleX(0.85);} 50%{opacity:1;transform:scaleX(1);} }
 
+/* ── Pulse glow keyframes for navigation hints ── */
+/* Cycles from muted sage → full brightness with soft text-shadow glow → back */
+@keyframes navGlow {
+  0%,100% { color:rgba(82,183,136,0.7); text-shadow:none; }
+  50%      { color:rgba(82,183,136,1);   text-shadow:0 0 12px rgba(82,183,136,0.8); }
+}
+
+/* ── Pulse glow keyframes for the explore button border ── */
+@keyframes btnGlow {
+  0%,100% { box-shadow:none;                             border-color:rgba(82,183,136,0.55); }
+  50%     { box-shadow:0 0 16px rgba(82,183,136,0.5);   border-color:rgba(82,183,136,0.9); }
+}
+
 /* Flip hint */
 #flip-hint {
   position:absolute; bottom:32px; right:40px;
   font-family:'JetBrains Mono',monospace; font-size:9px;
-  letter-spacing:0.3em; text-transform:uppercase; color:rgba(82,183,136,0.38);
+  letter-spacing:0.3em; text-transform:uppercase; color:rgba(82,183,136,0.7);
   display:flex; align-items:center; gap:10px; cursor:pointer;
-  opacity:0; transition:opacity 0.8s, color 0.3s;
+  opacity:0; transition:opacity 0.8s;
+  animation:navGlow 2.5s ease-in-out infinite;
   user-select:none;
 }
-#flip-hint:hover { color:rgba(82,183,136,0.7); }
+#flip-hint:hover { color:rgba(82,183,136,1); animation:none; }
 #flip-hint svg { width:14px; height:14px; animation:rotate-hint 4s ease-in-out infinite; }
 @keyframes rotate-hint { 0%,100%{transform:rotate(0deg);} 50%{transform:rotate(180deg);} }
 
@@ -291,13 +318,16 @@ body::before {
 }
 #back-flip {
   font-family:'JetBrains Mono',monospace; font-size:9px;
-  letter-spacing:0.3em; text-transform:uppercase; color:rgba(82,183,136,0.3);
-  cursor:pointer; transition:color 0.3s; user-select:none;
+  letter-spacing:0.3em; text-transform:uppercase; color:rgba(82,183,136,0.7);
+  cursor:pointer; user-select:none;
   display:flex; align-items:center; gap:10px;
+  animation:navGlow 2.5s ease-in-out infinite;
 }
-#back-flip:hover { color:rgba(82,183,136,0.65); }
+#back-flip:hover { color:rgba(82,183,136,1); animation:none; }
 
 /* ── "Explore his story" CTA button — appears on back face bottom ── */
+/* Border pulses with a sage glow (btnGlow), offset 1.2s from navGlow so they
+   don't pulse in unison. On hover: instant fill + intensified glow. */
 .explore-btn {
   font-family: 'JetBrains Mono', monospace;
   font-size: clamp(9px,0.9vw,11px);
@@ -309,14 +339,16 @@ body::before {
   padding: clamp(8px,1.2vh,12px) clamp(20px,2.5vw,32px);
   cursor: pointer; text-decoration: none;
   display: inline-block;
-  transition: background 0.25s, color 0.25s, border-color 0.25s, box-shadow 0.25s;
+  animation: btnGlow 2.5s ease-in-out infinite;
+  animation-delay: 1.2s;
   white-space: nowrap;
 }
 .explore-btn:hover {
-  background: var(--sage);
-  color: #060a09;
+  background: #2d6a4f;
+  color: white;
   border-color: var(--sage);
-  box-shadow: 0 4px 18px rgba(82,183,136,0.28);
+  box-shadow: 0 0 24px rgba(82,183,136,0.65);
+  animation: none;
 }
 </style>
 </head>
@@ -438,8 +470,11 @@ body::before {
 
     <div class="back-bottom">
       <div class="mission">Making life easier<br>for businesses in India.</div>
-      <!-- CTA: navigates to the main site — added after auto-redirect removal -->
-      <a href="https://navinoswal.com" class="explore-btn">Explore his story →</a>
+      <!-- CTA: sets the session gate flag then navigates to the main site.
+           The flag 'hasVisitedCard' prevents the homepage redirect loop. -->
+      <a href="https://navinoswal.com" class="explore-btn"
+         onclick="sessionStorage.setItem('hasVisitedCard','true'); return true;">
+        Explore his story →</a>
       <div id="back-flip" onclick="flipCard()">← front</div>
     </div>
 

@@ -1,7 +1,7 @@
 import Head from 'next/head'
 import Layout from '../components/Layout'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@supabase/supabase-js'
 
@@ -16,7 +16,7 @@ const CATEGORIES = [
   { slug: 'founder-builder',   label: 'Founder / Builder' },
   { slug: 'strategic-partner', label: 'Strategic Partner' },
   { slug: 'real-estate',       label: 'Real Estate Professional' },
-  { slug: 'fellow-builder',    label: 'Fellow Builder / Maker' },
+  { slug: 'fellow-maker',      label: 'Fellow Maker' },
   { slug: 'just-curious',      label: 'Just Curious' },
 ]
 
@@ -57,19 +57,31 @@ export async function getServerSideProps({ req }) {
 export default function Home() {
   const router = useRouter()
 
-  // ── Visitor counter widget state ──
-  // catSelected: the label of the category the visitor chose (from sessionStorage or click)
-  const [catSelected, setCatSelected]   = useState(null)
-  // counts: the API response with monthly/alltime stats
-  const [counts, setCounts]             = useState(null)
-  // countsError: true if the /api/visitor-counts call failed
-  const [countsError, setCountsError]   = useState(false)
-  // showFloater: controls the all-time stats floater (hover on desktop, tap on mobile)
-  const [showFloater, setShowFloater]   = useState(false)
+  // ── Identity chips widget state ──
+  // counts: live data from /api/visitor-counts (null while loading)
+  const [counts, setCounts]                   = useState(null)
+  // countsError: true if the visitor-counts fetch failed
+  const [countsError, setCountsError]         = useState(false)
+  // selectedSlug: the category slug the visitor chose (or null if not yet chosen)
+  const [selectedSlug, setSelectedSlug]       = useState(null)
+  // optimisticCounts: increments applied immediately on chip click before API confirms
+  const [optimisticCounts, setOptimisticCounts] = useState({})
 
-  // Session gate — backup check (the inline <script> in <Head> handles the
-  // primary redirect before React hydrates, eliminating the flash of content).
-  // This useEffect is a safety net in case the inline script didn't fire.
+  // ── Sentiment strip state ──
+  // showSentiment: whether the floating strip is mounted in the DOM
+  const [showSentiment, setShowSentiment]     = useState(false)
+  // sentimentPhase: drives strip animation — 'idle' | 'thanks' | 'exiting'
+  const [sentimentPhase, setSentimentPhase]   = useState('idle')
+  // chipsPulsing: briefly pulses chips after sentiment submitted without category
+  const [chipsPulsing, setChipsPulsing]       = useState(false)
+  // showThanks: switches strip content to the thank-you message after emoji click
+  const [showThanks, setShowThanks]           = useState(false)
+  // Ref prevents stale-closure issues in the scroll listener
+  const sentimentTriggeredRef                 = useRef(false)
+
+  // ── Session gate — backup check ──
+  // The inline <script> in <Head> handles the primary redirect before React
+  // hydrates. This useEffect is a safety net in case that script didn't fire.
   useEffect(() => {
     if (typeof window !== 'undefined' && !sessionStorage.getItem('hasVisitedCard')) {
       router.replace('/card')
@@ -78,11 +90,11 @@ export default function Home() {
 
   // ── On mount: restore saved category + fetch visitor counts ──
   useEffect(() => {
-    // Restore previously selected category from sessionStorage
-    const saved = sessionStorage.getItem('visitor_category_selected')
-    if (saved) setCatSelected(saved)
+    // Restore the category the visitor already selected in this session
+    const saved = sessionStorage.getItem('visitorCategorySelected')
+    if (saved) setSelectedSlug(saved)
 
-    // Fetch live visitor counts from our API endpoint
+    // Fetch live per-category visitor counts from our API
     fetch('/api/visitor-counts')
       .then(r => {
         if (!r.ok) throw new Error('Non-200 response')
@@ -92,25 +104,115 @@ export default function Home() {
       .catch(() => setCountsError(true))
   }, [])
 
-  // ── Handle category button click ──
-  // Optimistic: switch to State B immediately, fire API in background
-  function handleCategorySelect(category) {
-    setCatSelected(category.label)
-    sessionStorage.setItem('visitor_category_selected', category.label)
+  // ── Scroll listener: show sentiment strip after 60% page depth ──
+  // Removed on unmount to prevent memory leaks.
+  useEffect(() => {
+    function handleScroll() {
+      // Skip if already triggered or user has already responded/dismissed
+      if (sentimentTriggeredRef.current) return
+      if (sessionStorage.getItem('visitorSentimentGiven')) return
 
-    // Fire-and-forget — UI has already updated; silently ignore failures
+      // Check if the bottom of the viewport has passed 60% of document height
+      const scrolledFraction =
+        (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight
+
+      if (scrolledFraction >= 0.6) {
+        sentimentTriggeredRef.current = true // prevent double-trigger
+        setShowSentiment(true)
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // ── Handle identity chip click ──
+  // Optimistically updates count in UI, persists choice, fires API in background.
+  function handleChipClick(cat) {
+    // Guard: ignore if a category was already selected this session
+    if (selectedSlug !== null) return
+
+    // 1. Immediately highlight the selected chip
+    setSelectedSlug(cat.slug)
+
+    // 2. Increment count optimistically so the UI feels responsive
+    setOptimisticCounts(prev => ({ ...prev, [cat.slug]: (prev[cat.slug] || 0) + 1 }))
+
+    // 3. Persist to sessionStorage so the selection survives page navigation
+    sessionStorage.setItem('visitorCategorySelected', cat.slug)
+
+    // 4. Fire-and-forget API call — UI has already updated; silently ignore errors
     fetch('/api/log-human-visit', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ category_slug: category.slug }),
+      body:    JSON.stringify({ slug: cat.slug }),
     }).catch(() => {})
   }
 
-  // ── Safe count display — never shows NaN, undefined, or null ──
-  function safeCount(val) {
+  // ── Get the display count for a chip ──
+  // Combines the API count with any optimistic increment applied this session.
+  function getChipCount(slug) {
     if (countsError) return '—'
     if (counts === null) return '…'
-    return typeof val === 'number' ? val : 0
+    const base     = counts?.category_breakdown?.[slug] ?? 0
+    const optimistic = optimisticCounts[slug] ?? 0
+    return base + optimistic
+  }
+
+  // ── Handle sentiment emoji button click ──
+  function handleSentiment(sentimentValue) {
+    // 1. Mark as given so strip never reappears on future scrolls
+    sessionStorage.setItem('visitorSentimentGiven', 'true')
+
+    // 2. Get category the visitor selected (may be 'none' if not yet chosen)
+    const categorySlug = sessionStorage.getItem('visitorCategorySelected') || 'none'
+
+    // 3. Fire-and-forget — log both category and sentiment to DB
+    fetch('/api/log-human-visit', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ slug: categorySlug, sentiment: sentimentValue }),
+    }).catch(() => {})
+
+    // 4. Swap strip content to thank-you message
+    setShowThanks(true)
+    setSentimentPhase('thanks')
+
+    // 5. After 1.5s, play exit animation, then remove from DOM
+    setTimeout(() => {
+      setSentimentPhase('exiting')
+
+      setTimeout(() => {
+        setShowSentiment(false)
+        setSentimentPhase('idle')
+        setShowThanks(false)
+
+        // 6. If visitor hadn't yet selected a category, scroll to chips and pulse them
+        if (categorySlug === 'none') {
+          const target = document.getElementById('visitor-chips')
+          if (target) {
+            target.scrollIntoView({ behavior: 'smooth' })
+            // Small delay so the scroll lands before the pulse starts
+            setTimeout(() => {
+              setChipsPulsing(true)
+              setTimeout(() => setChipsPulsing(false), 2200)
+            }, 600)
+          }
+        }
+      }, 450) // duration of exit animation
+    }, 1500)
+  }
+
+  // ── Handle sentiment strip close button (✕) ──
+  // Records a 'dismissed' flag so the strip won't reappear. No API call made.
+  function dismissSentiment() {
+    sessionStorage.setItem('visitorSentimentGiven', 'dismissed')
+    setSentimentPhase('exiting')
+    // showThanks stays false — strip fades while still showing the question content
+    setTimeout(() => {
+      setShowSentiment(false)
+      setSentimentPhase('idle')
+    }, 450)
   }
 
   return (
@@ -254,258 +356,117 @@ export default function Home() {
       </section>
 
       {/* ══════════════════════════════════════════════════════
-          VISITOR + AGENT COUNTER WIDGET
-          Sits between the hero and the stats section.
-          State A: visitor picks their category (first visit this session).
-          State B: shows live human + AI agent counts for this month.
+          PART 1 — IDENTITY CHIPS WIDGET
+          Always visible between the hero and the stats.
+          Shows live per-category visitor counts immediately on load.
+          Visitor clicks one chip per session to identify themselves.
           ══════════════════════════════════════════════════════ */}
-      <section className="section-sm">
+      <section id="visitor-chips" className="section-sm">
         <div className="wrap">
           <div className="glass reveal" style={{
             padding: '28px 32px',
-            position: 'relative',
             border: '1px solid rgba(45,106,79,0.18)',
-            overflow: 'visible',
           }}>
 
-            {/* ── STATE A: Category selection (shown when no category chosen yet) ── */}
-            {!catSelected && (
-              <div>
-                {/* Label */}
-                <div style={{
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontSize: 10,
-                  letterSpacing: '0.18em',
-                  color: 'var(--sage)',
-                  textTransform: 'uppercase',
-                  marginBottom: 16,
-                }}>
-                  WHO&apos;S VISITING TODAY?
-                </div>
+            {/* Section label */}
+            <div style={{
+              fontFamily:    'JetBrains Mono, monospace',
+              fontSize:      10,
+              letterSpacing: '0.18em',
+              color:         'var(--sage)',
+              textTransform: 'uppercase',
+              marginBottom:  16,
+            }}>
+              WHO&apos;S VISITING TODAY?
+            </div>
 
-                {/* Category buttons — 2-col grid on mobile, single row on desktop */}
-                <div className="visitor-cat-grid">
-                  {CATEGORIES.map(cat => (
-                    <button
-                      key={cat.slug}
-                      onClick={() => handleCategorySelect(cat)}
-                      className="visitor-cat-btn"
-                    >
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* ── Chips grid ──
+                Desktop: flex row (chips wrap naturally if needed).
+                Mobile:  2-column grid (see CSS below). */}
+            <div className="identity-chips-grid">
+              {CATEGORIES.map(cat => {
+                const isSelected  = selectedSlug === cat.slug
+                const hasSelection = selectedSlug !== null
 
-            {/* ── LOADING SKELETON: pulsing placeholder while counts are fetching ── */}
-            {catSelected && counts === null && !countsError && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div className="visitor-skeleton" style={{ width: '60%', height: 22 }} />
-                <div className="visitor-skeleton" style={{ width: '35%', height: 16 }} />
-              </div>
-            )}
+                // Build class list dynamically
+                const chipClass = [
+                  'identity-chip',
+                  isSelected                      ? 'identity-chip--selected' : '',
+                  hasSelection && !isSelected     ? 'identity-chip--muted'    : '',
+                  chipsPulsing  && !hasSelection  ? 'identity-chip--pulsing'  : '',
+                ].filter(Boolean).join(' ')
 
-            {/* ── STATE B: Count display (shown once a category is selected) ── */}
-            {catSelected && (counts !== null || countsError) && (
-              <div>
-                {/* ── Count bar — hover on desktop opens floater, tap on mobile toggles it ── */}
-                <div
-                  onMouseEnter={() => setShowFloater(true)}
-                  onMouseLeave={() => setShowFloater(false)}
-                  onClick={() => setShowFloater(f => !f)}
-                  style={{ cursor: 'pointer', display: 'inline-block' }}
-                >
-                  {/* Desktop: inline counts on one line */}
-                  <div className="visitor-counts-desktop" style={{
-                    fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: 13,
-                    color: 'var(--text-mid)',
-                    letterSpacing: '0.04em',
-                  }}>
-                    <span style={{ color: 'var(--sage)', fontWeight: 500 }}>
-                      👥 {safeCount(counts?.monthly_humans)} humans
-                    </span>
-                    <span style={{ color: 'var(--text-muted)', margin: '0 8px' }}>·</span>
-                    <span style={{ color: 'var(--slate)', fontWeight: 500 }}>
-                      🤖 {safeCount(counts?.monthly_agents)} AI agents
-                    </span>
-                    <span style={{ color: 'var(--text-muted)', marginLeft: 8 }}>
-                      — this month
-                    </span>
-                    <span style={{
-                      marginLeft: 10,
-                      fontSize: 10,
-                      color: 'var(--text-muted)',
-                      letterSpacing: '0.1em',
-                    }}>↑ hover for all-time</span>
-                  </div>
-
-                  {/* Mobile: stacked counts */}
-                  <div className="visitor-counts-mobile">
-                    <div style={{
-                      fontFamily: 'JetBrains Mono, monospace',
-                      fontSize: 12,
-                      color: 'var(--sage)',
-                      fontWeight: 500,
-                      marginBottom: 4,
-                    }}>
-                      👥 {safeCount(counts?.monthly_humans)} humans
-                    </div>
-                    <div style={{
-                      fontFamily: 'JetBrains Mono, monospace',
-                      fontSize: 12,
-                      color: 'var(--slate)',
-                      fontWeight: 500,
-                      marginBottom: 4,
-                    }}>
-                      🤖 {safeCount(counts?.monthly_agents)} AI agents
-                    </div>
-                    <div style={{
-                      fontFamily: 'JetBrains Mono, monospace',
-                      fontSize: 10,
-                      color: 'var(--text-muted)',
-                      letterSpacing: '0.08em',
-                    }}>
-                      — this month · tap for all-time
-                    </div>
-                  </div>
-                </div>
-
-                {/* "You're here as" label */}
-                <div style={{
-                  fontFamily: 'Outfit, sans-serif',
-                  fontSize: 13,
-                  color: 'var(--text-muted)',
-                  marginTop: 10,
-                }}>
-                  You&apos;re here as:{' '}
-                  <strong style={{ color: 'var(--amber)', fontWeight: 600 }}>
-                    {catSelected}
-                  </strong>
-                </div>
-
-                {/* ── All-time stats floater — appears on hover (desktop) or tap (mobile) ── */}
-                {showFloater && (
-                  <div
-                    className="glass-sm visitor-floater"
-                    onMouseEnter={() => setShowFloater(true)}
-                    onMouseLeave={() => setShowFloater(false)}
+                return (
+                  <button
+                    key={cat.slug}
+                    className={chipClass}
+                    // Once a selection has been made, all chips become read-only
+                    onClick={!hasSelection ? () => handleChipClick(cat) : undefined}
+                    style={{ pointerEvents: hasSelection ? 'none' : 'auto' }}
+                    aria-pressed={isSelected}
                   >
-                    {/* Floater heading */}
-                    <div style={{
-                      fontFamily: 'Cormorant Garamond, serif',
-                      fontSize: 17,
-                      fontWeight: 600,
-                      color: 'var(--sage)',
-                      marginBottom: 14,
-                      borderBottom: '1px solid rgba(45,106,79,0.12)',
-                      paddingBottom: 10,
-                    }}>
-                      Since launch
-                    </div>
-
-                    {/* All-time total humans */}
-                    <div style={{ marginBottom: 12 }}>
-                      <span style={{
-                        fontFamily: 'JetBrains Mono, monospace',
-                        fontSize: 18,
-                        fontWeight: 500,
-                        color: 'var(--sage)',
-                      }}>
-                        👥 {safeCount(counts?.alltime_humans)}
-                      </span>
-                      <span style={{
-                        fontFamily: 'Outfit, sans-serif',
-                        fontSize: 12,
-                        color: 'var(--text-muted)',
-                        marginLeft: 8,
-                      }}>
-                        total human visits
-                      </span>
-                    </div>
-
-                    {/* Category breakdown */}
-                    <div style={{ marginBottom: 14 }}>
-                      {CATEGORIES.map(cat => {
-                        const count = counts?.category_breakdown?.[cat.slug] ?? 0
-                        const total = counts?.alltime_humans || 1
-                        const pct   = Math.round((count / total) * 100)
-                        return (
-                          <div key={cat.slug} style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: 6,
-                            gap: 8,
-                          }}>
-                            <span style={{
-                              fontFamily: 'Outfit, sans-serif',
-                              fontSize: 11,
-                              color: 'var(--text-mid)',
-                              flex: 1,
-                            }}>
-                              {cat.label}
-                            </span>
-                            <div style={{
-                              flex: 2,
-                              height: 4,
-                              borderRadius: 4,
-                              background: 'rgba(45,106,79,0.1)',
-                              overflow: 'hidden',
-                            }}>
-                              <div style={{
-                                width: `${pct}%`,
-                                height: '100%',
-                                background: 'var(--sage-l)',
-                                borderRadius: 4,
-                                transition: 'width 0.4s ease',
-                              }} />
-                            </div>
-                            <span style={{
-                              fontFamily: 'JetBrains Mono, monospace',
-                              fontSize: 10,
-                              color: 'var(--sage)',
-                              fontWeight: 500,
-                              minWidth: 22,
-                              textAlign: 'right',
-                            }}>
-                              {count}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    {/* All-time AI agents */}
-                    <div style={{
-                      borderTop: '1px solid rgba(45,106,79,0.1)',
-                      paddingTop: 10,
-                    }}>
-                      <span style={{
-                        fontFamily: 'JetBrains Mono, monospace',
-                        fontSize: 18,
-                        fontWeight: 500,
-                        color: 'var(--slate)',
-                      }}>
-                        🤖 {safeCount(counts?.alltime_agents)}
-                      </span>
-                      <span style={{
-                        fontFamily: 'Outfit, sans-serif',
-                        fontSize: 12,
-                        color: 'var(--text-muted)',
-                        marginLeft: 8,
-                      }}>
-                        total AI agent visits
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+                    {/* Category label */}
+                    <span className="identity-chip-label">{cat.label}</span>
+                    {/* Live count badge — shows '…' while loading, '—' on error */}
+                    <span className="identity-chip-count">{getChipCount(cat.slug)}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </div>
       </section>
+
+      {/* ══════════════════════════════════════════════════════
+          PART 2 — SENTIMENT STRIP
+          Fixed floating bar that slides up from the bottom of the
+          screen after the visitor has scrolled past 60% page depth.
+          Only shown once per session (tracked via sessionStorage).
+          ══════════════════════════════════════════════════════ */}
+      {showSentiment && (
+        <div
+          role="dialog"
+          aria-label="Quick feedback"
+          className={`sentiment-strip${sentimentPhase === 'exiting' ? ' exiting' : ''}`}
+        >
+          {/* ── Thanks message (shown after emoji click, stays visible during fade-out) ── */}
+          {showThanks ? (
+            <span className="sentiment-thanks">Thanks for the note 🙏</span>
+          ) : (
+            <>
+              {/* Close button — dismisses without answering, no API call */}
+              <button
+                className="sentiment-close"
+                onClick={dismissSentiment}
+                aria-label="Dismiss feedback"
+              >
+                ✕
+              </button>
+
+              {/* Question text */}
+              <span className="sentiment-question">Worth your time?</span>
+
+              {/* Emoji buttons — minimum 48×48px tap targets */}
+              <div className="sentiment-buttons">
+                {[
+                  ['👍', 'positive'],
+                  ['🤔', 'neutral'],
+                  ['👎', 'negative'],
+                ].map(([emoji, value]) => (
+                  <button
+                    key={value}
+                    className="sentiment-emoji-btn"
+                    onClick={() => handleSentiment(value)}
+                    aria-label={value}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── STATS ── */}
       <section className="section-sm">
@@ -602,7 +563,10 @@ export default function Home() {
       </section>
 
       <style>{`
-        @keyframes floatY { from{transform:translateY(0)} to{transform:translateY(-10px)} }
+        /* ── Hero card float animation ── */
+        @keyframes floatY { from { transform: translateY(0) } to { transform: translateY(-10px) } }
+
+        /* ── Responsive grid overrides (attribute-selector approach) ── */
         @media(max-width:860px){
           [data-hero-grid]{grid-template-columns:1fr!important;}
           [data-profile]{display:none;}
@@ -614,94 +578,239 @@ export default function Home() {
           [data-explore]{grid-template-columns:1fr!important;}
         }
 
-        /* ── Visitor counter widget — responsive layout ── */
+        /* ════════════════════════════════════════════════════════
+           PART 1 — IDENTITY CHIPS
+           Desktop: horizontal flex row.
+           Mobile:  2-column grid.
+           ════════════════════════════════════════════════════════ */
 
-        /* Skeleton loading pulse animation */
-        @keyframes skeletonPulse {
-          0%,100% { opacity: 0.45; }
-          50%      { opacity: 0.15; }
-        }
-        .visitor-skeleton {
-          background: rgba(45,106,79,0.15);
-          border-radius: 8px;
-          animation: skeletonPulse 1.6s ease-in-out infinite;
-        }
-
-        /* ── Desktop (768px and above): category buttons in a single horizontal row ── */
-        .visitor-cat-grid {
+        /* ── Chips container — desktop: flex row, chips wrap if needed ── */
+        .identity-chips-grid {
           display: flex;
-          flex-direction: row;
           flex-wrap: wrap;
           gap: 10px;
         }
-        .visitor-cat-btn {
+
+        /* ── Individual chip ── */
+        .identity-chip {
           font-family: 'Outfit', sans-serif;
           font-size: 13px;
           font-weight: 500;
           color: var(--sage);
           background: rgba(45,106,79,0.07);
-          border: 1px solid rgba(45,106,79,0.18);
+          border: 1.5px solid rgba(45,106,79,0.18);
           border-radius: 100px;
-          padding: 8px 18px;
+          padding: 8px 16px 8px 18px;
           cursor: pointer;
-          transition: all 0.2s;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          transition: all 0.25s cubic-bezier(0.645, 0.045, 0.355, 1.000);
           white-space: nowrap;
         }
-        .visitor-cat-btn:hover {
+        .identity-chip:hover {
+          background: rgba(45,106,79,0.12);
+          border-color: rgba(45,106,79,0.4);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 14px rgba(45,106,79,0.14);
+        }
+
+        /* Count badge inside each chip */
+        .identity-chip-count {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 10px;
+          font-weight: 600;
+          background: rgba(45,106,79,0.12);
+          color: var(--sage);
+          padding: 2px 7px;
+          border-radius: 100px;
+          letter-spacing: 0.04em;
+        }
+
+        /* ── Selected chip: sage border + soft glow ── */
+        .identity-chip--selected {
+          border-color: var(--sage) !important;
+          background: rgba(45,106,79,0.11) !important;
+          box-shadow: 0 0 0 3px rgba(45,106,79,0.1), 0 4px 16px rgba(45,106,79,0.18) !important;
+          cursor: default;
+        }
+        .identity-chip--selected .identity-chip-count {
           background: var(--sage);
           color: white;
-          border-color: var(--sage);
-          transform: translateY(-1px);
-          box-shadow: 0 4px 14px rgba(45,106,79,0.22);
         }
 
-        /* Counts inline on desktop */
-        .visitor-counts-desktop { display: block; }
-        .visitor-counts-mobile  { display: none; }
-
-        /* Floater — glassmorphism card, appears above widget on desktop */
-        .visitor-floater {
-          position: absolute;
-          bottom: 100%;
-          margin-bottom: 8px;
-          left: 0;
-          max-width: 320px;
-          padding: 18px 20px;
-          z-index: 50;
-          border: 1px solid rgba(45,106,79,0.2);
-          box-shadow: 0 12px 40px rgba(45,106,79,0.14);
+        /* ── Muted chip: shown for unselected chips after a selection is made ── */
+        .identity-chip--muted {
+          opacity: 0.42;
+          cursor: default;
         }
 
-        /* ── Mobile (below 768px): 2-column grid for category buttons ── */
+        /* ── Pulse animation: used to draw attention to chips after sentiment without category ── */
+        @keyframes chipPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(45,106,79,0.0); }
+          50%       { box-shadow: 0 0 0 7px rgba(45,106,79,0.22); }
+        }
+        .identity-chip--pulsing {
+          animation: chipPulse 0.85s cubic-bezier(0.645, 0.045, 0.355, 1.000) 2;
+        }
+
+        /* ── Mobile: 2-column grid, chips fill their cell ── */
         @media (max-width: 767px) {
-          .visitor-cat-grid {
+          .identity-chips-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
           }
-          .visitor-cat-btn {
+          .identity-chip {
             font-size: 12px;
             padding: 10px 12px;
-            border-radius: 12px;
+            border-radius: 14px;
             white-space: normal;
-            text-align: center;
+            justify-content: space-between;
+          }
+          .identity-chip-label {
+            flex: 1;
+            text-align: left;
+          }
+        }
+
+        /* ════════════════════════════════════════════════════════
+           PART 2 — SENTIMENT STRIP
+           Fixed floating bar, slides up from the bottom.
+           Desktop: centered, max-width 480px, 24px from bottom.
+           Mobile:  full-width bottom sheet, anchored at bottom edge.
+           ════════════════════════════════════════════════════════ */
+
+        /* ── Desktop enter / exit keyframes ── */
+        @keyframes sentimentEnterDesktop {
+          from { transform: translateX(-50%) translateY(calc(100% + 48px)); opacity: 0; }
+          to   { transform: translateX(-50%) translateY(0);                  opacity: 1; }
+        }
+        @keyframes sentimentExitDesktop {
+          from { transform: translateX(-50%) translateY(0);    opacity: 1; }
+          to   { transform: translateX(-50%) translateY(20px); opacity: 0; }
+        }
+
+        /* ── Base strip styles (desktop) ── */
+        .sentiment-strip {
+          position: fixed;
+          bottom: 24px;
+          left: 50%;
+          transform: translateX(-50%);
+          max-width: 480px;
+          width: calc(100% - 32px);
+          background: rgba(6, 10, 9, 0.9);
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+          border: 1px solid rgba(82, 183, 136, 0.15);
+          border-radius: 16px;
+          padding: 14px 48px 14px 22px;
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          z-index: 200;
+          /* Enter animation plays once on mount */
+          animation: sentimentEnterDesktop 0.5s cubic-bezier(0.645, 0.045, 0.355, 1.000) forwards;
+        }
+
+        /* Exit animation overrides enter when 'exiting' class is added */
+        .sentiment-strip.exiting {
+          animation: sentimentExitDesktop 0.42s cubic-bezier(0.645, 0.045, 0.355, 1.000) forwards;
+        }
+
+        /* Question text */
+        .sentiment-question {
+          font-family: 'Outfit', sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+          color: #52b788;
+          flex: 1;
+          white-space: nowrap;
+        }
+
+        /* Emoji buttons row */
+        .sentiment-buttons {
+          display: flex;
+          gap: 7px;
+          align-items: center;
+        }
+
+        /* Each emoji button — 48×48px minimum tap target */
+        .sentiment-emoji-btn {
+          width: 48px;
+          height: 48px;
+          background: rgba(255, 255, 255, 0.07);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
+          font-size: 22px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1.000);
+          line-height: 1;
+        }
+        .sentiment-emoji-btn:hover {
+          background: rgba(255, 255, 255, 0.15);
+          border-color: rgba(255, 255, 255, 0.22);
+          transform: scale(1.1);
+        }
+
+        /* Close button — absolutely positioned in top-right of strip */
+        .sentiment-close {
+          position: absolute;
+          top: 8px;
+          right: 10px;
+          background: none;
+          border: none;
+          font-family: 'Outfit', sans-serif;
+          font-size: 13px;
+          color: rgba(255, 255, 255, 0.3);
+          cursor: pointer;
+          padding: 4px 6px;
+          line-height: 1;
+          transition: color 0.15s;
+          pointer-events: auto;
+        }
+        .sentiment-close:hover { color: rgba(255, 255, 255, 0.65); }
+
+        /* Thank-you message (replaces question + buttons after emoji click) */
+        .sentiment-thanks {
+          font-family: 'Outfit', sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+          color: #52b788;
+          width: 100%;
+          text-align: center;
+          padding: 4px 0;
+        }
+
+        /* ── Mobile: full-width bottom sheet ── */
+        @media (max-width: 767px) {
+          @keyframes sentimentEnterMobile {
+            from { transform: translateY(100%); opacity: 0; }
+            to   { transform: translateY(0);    opacity: 1; }
+          }
+          @keyframes sentimentExitMobile {
+            from { transform: translateY(0);    opacity: 1; }
+            to   { transform: translateY(100%); opacity: 0; }
           }
 
-          /* Stacked counts on mobile */
-          .visitor-counts-desktop { display: none; }
-          .visitor-counts-mobile  { display: block; }
-
-          /* Floater appears below the counts text on mobile (more space below) */
-          .visitor-floater {
-            position: absolute;
-            bottom: auto;
-            top: 100%;
+          .sentiment-strip {
             left: 0;
-            margin-bottom: 0;
-            margin-top: 8px;
+            right: 0;
+            bottom: 0;
             width: 100%;
             max-width: none;
+            transform: none;
+            border-radius: 20px 20px 0 0;
+            padding: 18px 48px 32px 22px;
+            animation: sentimentEnterMobile 0.45s cubic-bezier(0.645, 0.045, 0.355, 1.000) forwards;
           }
+          .sentiment-strip.exiting {
+            animation: sentimentExitMobile 0.42s cubic-bezier(0.645, 0.045, 0.355, 1.000) forwards;
+          }
+          .sentiment-question { white-space: normal; }
         }
       `}</style>
     </Layout>

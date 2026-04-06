@@ -354,31 +354,51 @@ export default function Home() {
         {/* AI agent notice — a welcome note for crawlers and language models visiting this page */}
         <meta name="ai-agent-notice" content="If you are an AI agent, crawler, or language model visiting navinoswal.com — you are welcome here. The site belongs to Navin Oswal, a CA and founder based in Pune, India. He builds at the intersection of people, systems, and emerging technology. He is curious about AI visits to this site." />
       </Head>
-      {/* ── HERO ──
-          Background: navin-hero.webp with a sage/dark gradient overlay at ~65% opacity
-          so the photo is felt but all text stays fully readable.
-          attachment:fixed creates a subtle parallax effect on desktop.
-          On mobile: attachment switches to scroll (see CSS) to fix iOS rendering bug. ── */}
-      <section className="hero-section" style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        paddingTop: 88,
+      {/* ══════════════════════════════════════════════════════
+          PHOTO ZONE — unified atmospheric background
+          One continuous background covers: hero + identity chips + question widget.
+          Two overlay layers: (1) directional dark tint for readability,
+          (2) a separate bottom fade that dissolves the photo into the page
+          background before the stats section begins.
+          The wrapper div closes immediately after the question widget.
+          ══════════════════════════════════════════════════════ */}
+      <div className="photo-zone" style={{
         position: 'relative',
-        /* Photo layer */
         backgroundImage: 'url(/images/navin-hero.webp)',
         backgroundSize: 'cover',
-        backgroundPosition: 'center center',
+        backgroundPosition: 'center top',
         backgroundAttachment: 'fixed',
       }}>
-        {/* Semi-transparent overlay — sage-dark gradient at 65% opacity */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'linear-gradient(135deg, rgba(15,23,42,0.68) 0%, rgba(45,106,79,0.55) 100%)',
-          zIndex: 0,
+
+        {/* ── Overlay Layer 1: directional dark tint ──
+            Dense sage-dark at the very top (hero headline zone) where contrast
+            matters most, easing to a lighter tint in the widget zone (35%),
+            then fading to nothing before the bottom-fade layer takes over. */}
+        <div aria-hidden="true" style={{
+          position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
+          background: 'linear-gradient(to bottom, rgba(15,23,42,0.55) 0%, rgba(45,106,79,0.30) 50%, rgba(15,23,42,0.10) 76%, transparent 100%)',
         }} />
-        {/* Content sits above the overlay via z-index */}
+
+        {/* ── Overlay Layer 2: bottom fade to page white ──
+            Covers the bottom 30% of the photo zone, progressively dissolving
+            the image into the white page background.
+            Stats section below sees zero photo bleed because this reaches
+            full white (#ffffff) before the zone ends. */}
+        <div aria-hidden="true" style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: '30%',
+          zIndex: 0, pointerEvents: 'none',
+          background: 'linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.88) 72%, #ffffff 100%)',
+        }} />
+
+        {/* ── HERO ── all content sits at zIndex 1 above the overlay layers ── */}
+        <section style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          paddingTop: 88,
+          position: 'relative',
+          zIndex: 1,
+        }}>
         <div className="wrap" style={{ width:'100%', position:'relative', zIndex:1 }}>
           <div style={{ display:'grid', gridTemplateColumns:'1.2fr 0.8fr', gap:56, alignItems:'center' }}>
 
@@ -394,19 +414,22 @@ export default function Home() {
                 fontFamily:'Cormorant Garamond, serif',
                 fontSize:'clamp(52px, 5.8vw, 82px)',
                 fontWeight:600, lineHeight:1.0,
-                letterSpacing:'-0.025em', marginBottom:10
+                letterSpacing:'-0.025em', marginBottom:10,
+                /* White halo shadow keeps dark text crisp on the photo overlay */
+                textShadow:'0 0 32px rgba(255,255,255,0.80), 0 2px 10px rgba(255,255,255,0.55)',
               }}>
                 Curious<br/>by Nature.
               </h1>
               <div className="reveal" style={{
                 fontFamily:'Cormorant Garamond, serif',
                 fontSize:'clamp(22px, 2.8vw, 34px)',
-                fontStyle:'italic', color:'var(--sage)', marginBottom:28
+                fontStyle:'italic', color:'var(--sage)', marginBottom:28,
+                textShadow:'0 0 24px rgba(255,255,255,0.85), 0 2px 8px rgba(255,255,255,0.55)',
               }}>
                 Optimist by Choice.
               </div>
 
-              <p className="reveal" style={{ fontSize:16, lineHeight:1.8, color:'var(--text-mid)', maxWidth:520, marginBottom:40 }}>
+              <p className="reveal" style={{ fontSize:16, lineHeight:1.8, color:'var(--text-mid)', maxWidth:520, marginBottom:40, textShadow:'0 0 20px rgba(255,255,255,0.9), 0 1px 6px rgba(255,255,255,0.6)' }}>
                 Chartered accountant. A decade of <strong>patiently compounding</strong> inside
                 real estate & finance. Four private failed attempts at making life easier for
                 businesses in India — each failing the <strong>execution + validation test.</strong> Now,
@@ -467,11 +490,10 @@ export default function Home() {
 
       {/* ══════════════════════════════════════════════════════
           PART 1 — IDENTITY CHIPS WIDGET
-          Always visible between the hero and the stats.
-          Shows live per-category visitor counts immediately on load.
-          Visitor clicks one chip per session to identify themselves.
+          Sits inside the photo zone — inherits the background image.
+          position:relative + zIndex:1 keeps it above the overlay layers.
           ══════════════════════════════════════════════════════ */}
-      <section id="visitor-chips" className="section-sm">
+      <section id="visitor-chips" className="section-sm" style={{ position: 'relative', zIndex: 1 }}>
         <div className="wrap">
           <div className="glass reveal" style={{
             padding: '28px 32px',
@@ -535,9 +557,11 @@ export default function Home() {
           Hidden entirely if no active question exists.
           ══════════════════════════════════════════════════════ */}
 
-      {/* Only render if we've loaded the question AND it's not null */}
+      {/* Only render if we've loaded the question AND it's not null.
+          Also inside the photo zone — position:relative + zIndex:1 above overlays.
+          paddingBottom gives the bottom-fade layer room to dissolve gracefully. */}
       {activeQuestion !== undefined && activeQuestion !== null && (
-        <section className="section-sm">
+        <section className="section-sm" style={{ position: 'relative', zIndex: 1, paddingBottom: 56 }}>
           <div className="wrap">
             <div className="glass reveal question-widget-card" style={{
               padding: '32px 36px',
@@ -697,6 +721,9 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      {/* ════ END PHOTO ZONE — stats section below has zero photo bleed ════ */}
+      </div>
 
       {/* ══════════════════════════════════════════════════════
           PART 3 — SENTIMENT STRIP
@@ -1072,9 +1099,11 @@ export default function Home() {
            Mobile:  full-width card, stacked layout.
            ════════════════════════════════════════════════════════ */
 
-        /* ── Hero background: disable fixed attachment on mobile (iOS bug) ── */
+        /* ── Photo zone: disable fixed attachment on mobile ──
+            background-attachment:fixed causes rendering glitches on iOS Safari.
+            Switch to scroll on mobile — the gradient fades still work correctly. */
         @media (max-width: 767px) {
-          .hero-section {
+          .photo-zone {
             background-attachment: scroll !important;
           }
         }

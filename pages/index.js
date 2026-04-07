@@ -396,7 +396,9 @@ export default function Home() {
           zIndex: 1,
         }}>
         <div className="wrap" style={{ width:'100%', position:'relative', zIndex:1 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1.2fr 0.8fr', gap:56, alignItems:'center' }}>
+          {/* data-hero-grid: triggers the responsive CSS at max-width:860px (see <style> below)
+              — collapses the two-column desktop layout to single-column on mobile */}
+          <div data-hero-grid style={{ display:'grid', gridTemplateColumns:'1.2fr 0.8fr', gap:56, alignItems:'center' }}>
 
             {/* Left */}
             <div>

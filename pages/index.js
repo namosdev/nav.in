@@ -91,6 +91,11 @@ export default function Home() {
   // Ref prevents stale-closure issues in the scroll listener
   const sentimentTriggeredRef                 = useRef(false)
 
+  // ── Hero mobile tab switcher state ──
+  // 'formula' = left panel (The Formula), 'changed' = right panel (What Changed)
+  // Only visible at ≤768px — desktop always shows both columns.
+  const [heroTab, setHeroTab]                 = useState('formula')
+
   // ── Session gate — backup check ──
   // The inline <script> in <Head> handles the primary redirect before React
   // hydrates. This useEffect is a safety net in case that script didn't fire.
@@ -397,8 +402,9 @@ export default function Home() {
         }}>
         <div className="wrap" style={{ width:'100%', position:'relative', zIndex:1 }}>
           {/* data-hero-grid: triggers the responsive CSS at max-width:860px (see <style> below)
-              — collapses the two-column desktop layout to single-column on mobile */}
-          <div data-hero-grid style={{ display:'grid', gridTemplateColumns:'1.2fr 0.8fr', gap:56, alignItems:'center' }}>
+              — collapses the two-column desktop layout to single-column on mobile.
+              hero-desktop-only: hides this grid at ≤768px (replaced by tab switcher below). */}
+          <div className="hero-desktop-only" data-hero-grid style={{ display:'grid', gridTemplateColumns:'1.2fr 0.8fr', gap:56, alignItems:'center' }}>
 
             {/* Left */}
             <div>
@@ -499,6 +505,175 @@ export default function Home() {
               </div>
             </div>
           </div>
+
+          {/* ══════════════════════════════════════════════════════
+              HERO MOBILE TAB SWITCHER
+              Only visible at ≤768px. Replaces the two-column desktop
+              grid with a tab interface: one card visible at a time.
+              Tab 1 "The Formula" = left column content (wrapped in glass).
+              Tab 2 "What Changed" = right column profile card.
+              Desktop (.hero-desktop-only) is hidden at this breakpoint.
+              ══════════════════════════════════════════════════════ */}
+          <div className="hero-mobile-only">
+
+            {/* ── Tab bar ── full width, sage pill for active tab ── */}
+            <div style={{
+              display:        'flex',
+              background:     'rgba(255,255,255,0.45)',
+              border:         '1px solid rgba(255,255,255,0.7)',
+              borderRadius:   14,
+              padding:        4,
+              marginBottom:   20,
+              backdropFilter: 'blur(12px)',
+            }}>
+              {/* Tab: The Formula */}
+              <button
+                onClick={() => setHeroTab('formula')}
+                style={{
+                  flex:        1,
+                  padding:     '10px 12px',
+                  fontFamily:  'Outfit, sans-serif',
+                  fontSize:    13,
+                  fontWeight:  600,
+                  border:      'none',
+                  cursor:      'pointer',
+                  borderRadius: 10,
+                  background:  heroTab === 'formula' ? 'var(--sage)' : 'transparent',
+                  color:       heroTab === 'formula' ? 'white' : 'var(--text-muted)',
+                  transition:  'all 0.2s',
+                }}
+              >
+                The Formula
+              </button>
+              {/* Tab: What Changed */}
+              <button
+                onClick={() => setHeroTab('changed')}
+                style={{
+                  flex:        1,
+                  padding:     '10px 12px',
+                  fontFamily:  'Outfit, sans-serif',
+                  fontSize:    13,
+                  fontWeight:  600,
+                  border:      'none',
+                  cursor:      'pointer',
+                  borderRadius: 10,
+                  background:  heroTab === 'changed' ? 'var(--sage)' : 'transparent',
+                  color:       heroTab === 'changed' ? 'white' : 'var(--text-muted)',
+                  transition:  'all 0.2s',
+                }}
+              >
+                What Changed
+              </button>
+            </div>
+
+            {/* ── Panel 1: The Formula ── left column content in a glass card ── */}
+            {heroTab === 'formula' && (
+              <div className="glass" style={{ padding: 28 }}>
+
+                {/* Avatar */}
+                <div style={{ marginBottom: 20 }}>
+                  <img
+                    src="/images/navin-profile-avatar.webp"
+                    alt="Navin Oswal"
+                    style={{
+                      width: 72, height: 72,
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      objectPosition: 'center top',
+                      border: '2px solid rgba(82,183,136,0.4)',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                      display: 'block',
+                    }}
+                  />
+                </div>
+
+                {/* Identity chips */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+                  <span className="chip chip-sage"><span className="dot"/>CA · 15,000 deliberate hours</span>
+                  <span className="chip chip-amber">Co-Founder · UNITS &amp; UNIVEN</span>
+                  <span className="chip chip-slate">Pune, Maharashtra</span>
+                </div>
+
+                {/* Headline */}
+                <h1 style={{
+                  fontFamily:    'Cormorant Garamond, serif',
+                  fontSize:      'clamp(42px, 10vw, 62px)',
+                  fontWeight:    600,
+                  lineHeight:    1.0,
+                  letterSpacing: '-0.025em',
+                  marginBottom:  10,
+                }}>
+                  Curious<br/>by Nature.
+                </h1>
+                <div style={{
+                  fontFamily:   'Cormorant Garamond, serif',
+                  fontSize:     'clamp(20px, 5vw, 26px)',
+                  fontStyle:    'italic',
+                  color:        'var(--sage)',
+                  marginBottom: 20,
+                }}>
+                  Optimist by Choice.
+                </div>
+
+                {/* Body paragraph */}
+                <p style={{ fontSize: 15, lineHeight: 1.8, color: 'var(--text-mid)', marginBottom: 24 }}>
+                  Chartered accountant. A decade of <strong>patiently compounding</strong> inside
+                  real estate &amp; finance. Four private failed attempts at making life easier for
+                  businesses in India — each failing the <strong>execution + validation test.</strong> Now,
+                  on attempt five, I finally understand the difference between willingness and decisiveness.
+                </p>
+
+                {/* CTA buttons */}
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <Link href="/about" className="btn-primary">Read my story →</Link>
+                  <Link href="/ventures" className="btn-ghost">What I&apos;m building ↗</Link>
+                </div>
+
+              </div>
+            )}
+
+            {/* ── Panel 2: What Changed ── profile card content ── */}
+            {heroTab === 'changed' && (
+              <div className="glass" style={{ padding: 32, textAlign: 'center' }}>
+
+                {/* Monogram avatar */}
+                <div style={{
+                  width: 80, height: 80, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, var(--sage-l), var(--amber-l))',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  margin: '0 auto 16px',
+                  fontFamily: 'Cormorant Garamond, serif', fontSize: 34, fontWeight: 600, color: 'white',
+                  boxShadow: '0 8px 28px rgba(45,106,79,0.22)',
+                }}>N</div>
+
+                <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 22, fontWeight: 600, marginBottom: 3 }}>Navin Oswal</div>
+                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.18em', color: 'var(--sage)', textTransform: 'uppercase', marginBottom: 4 }}>Chartered Accountant</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 18 }}>📍 Pune, Maharashtra · India</div>
+
+                {/* Domain chips */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, justifyContent: 'center', marginBottom: 18 }}>
+                  <span className="chip chip-sage" style={{fontSize: 11}}>Real Estate</span>
+                  <span className="chip chip-amber" style={{fontSize: 11}}>FinOps</span>
+                  <span className="chip chip-slate" style={{fontSize: 11}}>Technology</span>
+                  <span className="chip chip-sage" style={{fontSize: 11}}>Compliance</span>
+                </div>
+
+                {/* Interests 2×2 grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {['🏏 Sports forever','🎵 Music to unwind','🎬 Cinema to learn','🧠 WHY chaser'].map(item => (
+                    <div key={item} style={{
+                      padding: '10px 12px', borderRadius: 12,
+                      background: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.85)',
+                      fontSize: 12, fontWeight: 500, color: 'var(--text-mid)', textAlign: 'left',
+                    }}>{item}</div>
+                  ))}
+                </div>
+
+              </div>
+            )}
+
+          </div>{/* end hero-mobile-only */}
+
         </div>
       </section>
 
@@ -885,6 +1060,15 @@ export default function Home() {
       </section>
 
       <style>{`
+        /* ── Hero adaptive layout ──
+           Desktop (>768px): two-column grid (.hero-desktop-only) is visible.
+           Mobile (≤768px):  grid is hidden; tab switcher (.hero-mobile-only) is shown instead. */
+        .hero-mobile-only { display: none; }
+        @media (max-width: 768px) {
+          .hero-desktop-only { display: none !important; }
+          .hero-mobile-only  { display: block; }
+        }
+
         /* ── Hero card float animation ── */
         @keyframes floatY { from { transform: translateY(0) } to { transform: translateY(-10px) } }
 

@@ -97,6 +97,22 @@ export default function Stack({ stackItems }) {
           <section key={cat} className="section">
             <div className="wrap">
 
+              {/* Category chip — uppercase label matching admin panel style */}
+              <div className="reveal" style={{ marginBottom: 12 }}>
+                <span style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: 11,
+                  letterSpacing: '0.22em',
+                  textTransform: 'uppercase',
+                  padding: '5px 16px',
+                  borderRadius: 100,
+                  background: 'rgba(45,106,79,0.1)',
+                  color: 'var(--sage)',
+                  fontWeight: 600,
+                  display: 'inline-block',
+                }}>{cat}</span>
+              </div>
+
               {/* Category eyebrow + heading */}
               <p className="eyebrow reveal">{meta.eyebrow}</p>
               <h2 className="sec-h reveal" style={{ fontSize: 36 }}>
@@ -132,7 +148,7 @@ export default function Stack({ stackItems }) {
                       {item.name}
                     </h3>
 
-                    {/* Status badge — shows current usage status (e.g. "Using", "Exploring") */}
+                    {/* Status badge — sage for "Active", amber for everything else */}
                     {item.status && (
                       <div style={{ marginBottom: 14 }}>
                         <span style={{
@@ -142,8 +158,12 @@ export default function Stack({ stackItems }) {
                           textTransform: 'uppercase',
                           padding: '3px 10px',
                           borderRadius: 100,
-                          background: 'rgba(180,83,9,0.08)',
-                          color: 'var(--amber)',
+                          background: item.status === 'Active'
+                            ? 'rgba(45,106,79,0.08)'
+                            : 'rgba(180,83,9,0.08)',
+                          color: item.status === 'Active'
+                            ? 'var(--sage)'
+                            : 'var(--amber)',
                           fontWeight: 600,
                         }}>
                           {item.status}
@@ -273,7 +293,7 @@ export default function Stack({ stackItems }) {
 
 // ── Server-side data fetching ──
 // Runs on every request so stack content is always fresh from Supabase.
-// Fetches all rows from `stack_items` ordered by display_order ascending.
+// Fetches all rows from `stack_items` ordered by category ascending.
 // Items are grouped by `category` in the component above.
 // If fetch fails or table is empty, `stackItems` is null and no
 // category sections are rendered (workflow + experiments still show).
@@ -285,12 +305,13 @@ export async function getServerSideProps() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     )
 
-    // Fetch all stack items; select only the fields we need.
-    // display_order controls card sequence within each category.
+    // Fetch all stack items; select only the fields the table contains.
+    // Ordering by category groups them server-side; client-side grouping
+    // then enforces the CATEGORY_ORDER sequence for rendering.
     const { data, error } = await supabase
       .from('stack_items')
-      .select('category, name, description, status, display_order')
-      .order('display_order', { ascending: true })
+      .select('category, name, description, status')
+      .order('category', { ascending: true })
 
     // If Supabase returned an error, log it and pass null to the page
     if (error) {

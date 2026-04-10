@@ -134,23 +134,6 @@ export default function Now({
         </div>
       </section>
 
-      {/* ── DEVELOPER NOTE ── */}
-      {/* Reminds Navin (or any editor) how to update this page */}
-      <section className="section-sm">
-        <div className="wrap">
-          <div className="reveal" style={{ padding: '28px 32px', borderRadius: 16, background: 'rgba(45,106,79,0.05)', border: '1px dashed rgba(45,106,79,0.2)' }}>
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--sage)', marginBottom: 8 }}>Developer Note</div>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>
-              To update this page: use the{' '}
-              <code style={{ background: 'rgba(45,106,79,0.08)', padding: '2px 6px', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>admin panel</code>{' '}
-              to edit the{' '}
-              <code style={{ background: 'rgba(45,106,79,0.08)', padding: '2px 6px', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>now_content</code>{' '}
-              table in Supabase. Changes go live immediately — no code deployment needed.
-            </p>
-          </div>
-        </div>
-      </section>
-
     </Layout>
   )
 }

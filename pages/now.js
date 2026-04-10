@@ -13,7 +13,7 @@ import { createClient } from '@supabase/supabase-js'
 // All four fields are plain text — the admin panel will write to them.
 const FALLBACK = {
   lastUpdated: 'March 2026',
-  focused_on:  'Content coming soon — check back after the next update.',
+  focus_text:  'Content coming soon — check back after the next update.',
   building:    'Content coming soon — check back after the next update.',
   reading:     'Content coming soon — check back after the next update.',
   thinking:    'Content coming soon — check back after the next update.',
@@ -23,7 +23,7 @@ const FALLBACK = {
 // Receives four plain-text strings from getServerSideProps (or fallback).
 export default function Now({
   lastUpdated = FALLBACK.lastUpdated,
-  focused_on  = FALLBACK.focused_on,
+  focus_text  = FALLBACK.focus_text,
   building    = FALLBACK.building,
   reading     = FALLBACK.reading,
   thinking    = FALLBACK.thinking,
@@ -56,14 +56,14 @@ export default function Now({
       </div>
 
       {/* ── FOCUSED ON ── */}
-      {/* Displays the `focused_on` text field from now_content */}
+      {/* Displays the `focus_text` text field from now_content */}
       <section className="section">
         <div className="wrap">
           <p className="eyebrow reveal">Focused On</p>
           <h2 className="sec-h reveal" style={{ fontSize: 36 }}>What has my attention.</h2>
           <div className="glass reveal" style={{ padding: '36px 40px', marginTop: 36 }}>
             <p style={{ fontSize: 15, color: 'var(--text-muted)', lineHeight: 1.85, whiteSpace: 'pre-line' }}>
-              {focused_on}
+              {focus_text}
             </p>
           </div>
         </div>
@@ -171,7 +171,7 @@ export async function getServerSideProps() {
     // .maybeSingle() safely returns null when no row exists (no error thrown).
     const { data, error } = await supabase
       .from('now_content')
-      .select('focused_on, building, reading, thinking, updated_at')
+      .select('focus_text, building, reading, thinking, updated_at')
       .maybeSingle()
 
     // If Supabase returned an error or the table is empty, use fallback
@@ -189,7 +189,7 @@ export async function getServerSideProps() {
     return {
       props: {
         lastUpdated,
-        focused_on: data.focused_on || FALLBACK.focused_on,
+        focus_text: data.focus_text || FALLBACK.focus_text,
         building:   data.building   || FALLBACK.building,
         reading:    data.reading    || FALLBACK.reading,
         thinking:   data.thinking   || FALLBACK.thinking,

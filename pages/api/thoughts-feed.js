@@ -1,7 +1,16 @@
 // pages/api/thoughts-feed.js
-// Fetches the Substack RSS feed server-side and returns parsed posts as JSON.
-// Running this server-side avoids CORS restrictions and removes the dependency
-// on third-party services like rss2json.com.
+// Fetches a Substack section RSS feed server-side and returns parsed posts as JSON.
+// Accepts a ?url= query parameter so each tab can pull from its own section feed.
+// Only whitelisted Substack URLs are accepted — prevents open-proxy misuse.
+
+// All valid feed URLs — must match exactly what thoughts.js sends
+const ALLOWED_FEEDS = [
+  'https://namos.substack.com/feed',
+  'https://namos.substack.com/s/running-a-business',
+  'https://namos.substack.com/s/living-life',
+  'https://namos.substack.com/s/evolving-life',
+  'https://namos.substack.com/s/accidental-engineer',
+]
 
 export default async function handler(req, res) {
   // Only allow GET requests
@@ -9,11 +18,13 @@ export default async function handler(req, res) {
     return res.status(405).end()
   }
 
-  const FEED_URL = 'https://namos.substack.com/feed'
+  // Use the requested feed URL if it's whitelisted; otherwise fall back to main feed
+  const { url } = req.query
+  const feedUrl = (url && ALLOWED_FEEDS.includes(url)) ? url : ALLOWED_FEEDS[0]
 
   try {
-    // Fetch the RSS/Atom feed directly from Substack
-    const response = await fetch(FEED_URL, {
+    // Fetch the RSS feed from Substack
+    const response = await fetch(feedUrl, {
       headers: {
         // Some feeds require a User-Agent header — provide a descriptive one
         'User-Agent': 'Mozilla/5.0 (compatible; navinoswal.com/1.0; RSS reader)',
@@ -21,7 +32,7 @@ export default async function handler(req, res) {
     })
 
     if (!response.ok) {
-      console.error('[thoughts-feed] Feed fetch failed:', response.status)
+      console.error('[thoughts-feed] Feed fetch failed:', response.status, feedUrl)
       return res.status(502).json({ error: 'Could not fetch RSS feed', status: response.status })
     }
 
@@ -50,7 +61,7 @@ export default async function handler(req, res) {
     // ── Parse each item block into a plain object ──
     const items = itemBlocks
       .map(block => {
-        // Collect all <category> values — a post may have multiple tags
+        // Collect all <category> values — present on section feeds, absent on main feed
         const catMatches = [
           ...block.matchAll(/<category[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?<\/category>/gs),
         ]

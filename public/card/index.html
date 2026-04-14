@@ -476,6 +476,166 @@ body::before {
     margin-top: 26px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   MOBILE — Front face complete redesign
+   All rules below are additive at ≤768px. Zero desktop rules touched.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── #front-inner: desktop = invisible wrapper (display:contents) ── */
+/* On desktop the element is transparent to the flex layout, so .front-grid
+   behaves exactly as before. On mobile, JS switches this to a flex column
+   and animates it in via opacity + translateY. */
+#front-inner { display: contents; }
+
+/* ── Mobile-only elements: hidden on desktop ── */
+#m-eyebrow  { display: none; }
+#m-flip-cta { display: none; }
+
+/* Scale-pulse for the mobile flip CTA (defined globally so it is always
+   parseable, but only applied inside the mobile media query below). */
+@keyframes mFlipCta {
+  0%, 100% { transform: scale(1.00); }
+  50%       { transform: scale(1.04); }
+}
+
+@media (max-width: 768px) {
+
+  /* ── Card: full-bleed on mobile ── */
+  .card-wrapper {
+    width: 95vw;
+    height: 100vh;    /* fallback for browsers without dvh */
+    height: 100dvh;   /* dynamic viewport height: excludes mobile address bar */
+  }
+
+  /* ── Front face: top-anchored single column ── */
+  /* Override the desktop justify-content:center and horizontal padding. */
+  #front {
+    padding: 0 20px;
+    justify-content: flex-start;
+    align-items: center;
+  }
+
+  /* ── front-inner: real flex column for mobile layout + entrance animation ── */
+  /* opacity:0 / translateY(30px) is the entrance START state.
+     JS applies the transition at 2300ms to animate to opacity:1 / translateY(0). */
+  #front-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    flex: 1;                     /* fill the full card height so margin-top:auto works */
+    opacity: 0;
+    transform: translateY(30px); /* slide-in start — transition applied by JS */
+  }
+
+  /* ── Corner brackets: 20px legs, amber ── */
+  .pc           { width: 20px; height: 20px; }
+  .pc svg path  { stroke: rgba(251,191,36,0.45); }
+
+  /* ── Mobile eyebrow ── */
+  #m-eyebrow {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #52b788;
+    text-align: center;
+    margin-top: 48px;
+    /* No opacity animation — appears naturally when #front-inner slides in */
+  }
+
+  /* ── Hide desktop eyebrow (it has a ::before decorative rule line) ── */
+  #eyebrow { display: none; }
+
+  /* ── Grid → single-column flex on mobile ── */
+  .front-grid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    gap: 0;
+  }
+
+  /* ── Monogram: move before .front-left, reduce to 72px ── */
+  /* order:-1 places .mono-wrap before .front-left in the flex column. */
+  .mono-wrap {
+    order: -1;
+    width: 72px;
+    height: 72px;
+    margin-top: 20px;
+    margin-bottom: 20px;
+    align-self: center;
+  }
+  /* Scale the "N" glyph to fit the smaller circle */
+  .mono { font-size: 30px; }
+
+  /* ── Front-left: centered column on mobile ── */
+  .front-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    gap: 0;
+  }
+
+  /* ── Name: fluid, centered ── */
+  .name-char {
+    font-size: clamp(52px, 14vw, 68px);
+    text-align: center;
+    letter-spacing: 0.04em;
+  }
+  .name-clip { text-align: center; }
+  /* 4px gap between the two name lines only */
+  .name-clip + .name-clip { margin-top: 4px; }
+
+  /* ── Divider: JS animates width; we constrain the max via JS (40%) ── */
+  /* margin:auto centres the element once JS has set a width on it. */
+  .f-rule {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* ── Tagline ── */
+  .tagline {
+    font-size: 17px;
+    color: #f0ede8;
+    text-align: center;
+  }
+
+  /* ── Chips: allow wrap, centre the row ── */
+  .tags { justify-content: center; }
+  .tag  { font-size: 8px; }  /* slightly larger than the 0.75vw desktop value */
+
+  /* ── Hide desktop flip hint ── */
+  #flip-hint { display: none !important; }
+
+  /* ── Mobile flip CTA ── */
+  #m-flip-cta {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: #fbbf24;
+    text-align: center;
+    margin-top: auto;        /* pushes CTA to the bottom of #front-inner */
+    margin-bottom: 40px;
+    pointer-events: none;    /* visual hint only — whole card is the tap target */
+    user-select: none;
+    opacity: 0;
+    transition: opacity 0.8s;
+    animation: mFlipCta 2.2s ease-in-out infinite;
+  }
+
+  /* ── Mobile flip: faster + no X-axis tilt ── */
+  /* Desktop uses 0.85s with a slight rotateX settle; mobile is snappier. */
+  #scene { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+  /* Remove the 2deg X tilt on the flipped state for mobile */
+  #scene.flipped { transform: rotateY(180deg) rotateX(0deg); }
+}
 </style>
 </head>
 <body>
@@ -506,6 +666,13 @@ body::before {
     <div class="pc bl" id="pc3"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M24 24H1V1" stroke="rgba(82,183,136,0.3)" stroke-width="0.8"/></svg></div>
     <div class="pc br" id="pc4"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M1 24H24V1" stroke="rgba(82,183,136,0.3)" stroke-width="0.8"/></svg></div>
 
+    <!-- front-inner: transparent wrapper on desktop (display:contents);
+         becomes a flex column on mobile for the slide-up entrance animation. -->
+    <div id="front-inner">
+
+    <!-- Mobile-only eyebrow — hidden on desktop, visible on mobile -->
+    <div id="m-eyebrow">Chartered Accountant</div>
+
     <div class="front-grid">
 
       <div class="front-left">
@@ -530,9 +697,15 @@ body::before {
         <div class="mono">N</div>
       </div>
 
-    </div>
+    </div><!-- /front-grid -->
 
-    <!-- Flip hint -->
+    <!-- Mobile-only flip CTA — visual hint only, pointer-events:none.
+         The tap target is the whole card-wrapper (added by JS for mobile). -->
+    <div id="m-flip-cta">TAP TO FLIP &thinsp;&#9675;</div>
+
+    </div><!-- /front-inner -->
+
+    <!-- Flip hint — desktop only, hidden on mobile via CSS -->
     <div id="flip-hint" onclick="flipCard()">
       Ventures &amp; connect
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -682,60 +855,79 @@ function _spawnParticles() {
 
 /* ─────────────────────────────────────────────────────────────
    Enhanced flipCard
-   ① Spawns ripple at click coords (Enhancement 2)
+   ① Spawns ripple at click coords (Enhancement 2) — desktop only
    ② Adds .flipping glow class (Enhancement 5)
-   ③ Delays actual flip 60 ms so ripple is visible first
-   ④ Spawns particles at 420 ms — flip midpoint (Enhancement 3)
-   ⑤ Runs micro-settle after flip completes (Enhancement 1)
+   ③ Mobile: 80ms scale-press before flip; Desktop: 60ms ripple delay
+   ④ Spawns particles at flip midpoint (Enhancement 3)
+   ⑤ Runs micro-settle after flip completes (Enhancement 1) — desktop only
    ───────────────────────────────────────────────────────────── */
 function flipCard(e) {
   /* Clear timers from any previous in-flight flip */
   _settleTimers.forEach(t => clearTimeout(t));
   _settleTimers = [];
 
-  const scene   = document.getElementById('scene');
-  const wrapper = document.querySelector('.card-wrapper');
+  const scene    = document.getElementById('scene');
+  const wrapper  = document.querySelector('.card-wrapper');
+  const isMobile = window.innerWidth <= 768;
+  const flipMs   = isMobile ? 400 : 850;   /* mobile: 400ms, desktop: 850ms */
+  const flipDelay = isMobile ? 80 : 60;    /* mobile: wait for press; desktop: wait for ripple */
 
-  /* Enhancement 2: ripple before flip */
-  if (e && e.clientX !== undefined) _spawnRipple(e, wrapper);
+  /* Enhancement 2: ripple at click coords — desktop only (touch has no precise coords) */
+  if (!isMobile && e && e.clientX !== undefined) _spawnRipple(e, wrapper);
+
+  /* Mobile: scale-press — card compresses 3% for 80ms to feel physical */
+  if (isMobile) {
+    wrapper.style.transition = 'transform 80ms ease';
+    wrapper.style.transform  = 'scale(0.97)';
+    setTimeout(function() {
+      wrapper.style.transition = '';
+      wrapper.style.transform  = '';
+    }, 80);
+  }
 
   /* Enhancement 5: intensify glow while flip is in progress */
   wrapper.classList.add('flipping');
 
-  /* Delay the actual flip 60 ms — ripple has a head-start */
+  /* Perform the flip after press (mobile) or ripple (desktop) completes */
   _settleTimers.push(setTimeout(() => {
     isFlipped = !isFlipped;
     scene.classList.toggle('flipped', isFlipped);
-  }, 60));
+  }, flipDelay));
 
-  /* Enhancement 3: particles fire at flip midpoint (420 ms after click) */
-  _settleTimers.push(setTimeout(() => _spawnParticles(), 420));
+  /* Enhancement 3: particles fire at flip midpoint */
+  _settleTimers.push(setTimeout(
+    () => _spawnParticles(),
+    isMobile ? flipDelay + Math.round(flipMs / 2) : 420
+  ));
 
-  /* Enhancement 1: micro-settle fires when flip transition ends (60 ms delay + 850 ms) */
-  _settleTimers.push(setTimeout(() => {
-    if (isFlipped) {
-      /* Tilt 1 extra degree in 80 ms — card "lands" on the table */
-      scene.style.transition = 'transform 80ms ease';
-      scene.style.transform  = 'rotateY(180deg) rotateX(3deg)';
-
-      _settleTimers.push(setTimeout(() => {
-        /* Spring back to 2 deg in 120 ms */
-        scene.style.transition = 'transform 120ms ease';
-        scene.style.transform  = 'rotateY(180deg) rotateX(2deg)';
+  /* Enhancement 1: micro-settle — desktop only.
+     Mobile CSS cubic-bezier handles the easing; no JS settle needed. */
+  if (!isMobile) {
+    _settleTimers.push(setTimeout(() => {
+      if (isFlipped) {
+        /* Tilt 1 extra degree in 80 ms — card "lands" on the table */
+        scene.style.transition = 'transform 80ms ease';
+        scene.style.transform  = 'rotateY(180deg) rotateX(3deg)';
 
         _settleTimers.push(setTimeout(() => {
-          /* Restore CSS-defined transition and let the class rule take over */
-          scene.style.transition = '';
-          scene.style.transform  = '';
-        }, 130));   /* slight buffer after 120 ms spring-back */
-      }, 80));
-    }
-  }, 60 + 850));
+          /* Spring back to 2 deg in 120 ms */
+          scene.style.transition = 'transform 120ms ease';
+          scene.style.transform  = 'rotateY(180deg) rotateX(2deg)';
+
+          _settleTimers.push(setTimeout(() => {
+            /* Restore CSS-defined transition and let the class rule take over */
+            scene.style.transition = '';
+            scene.style.transform  = '';
+          }, 130));   /* slight buffer after 120 ms spring-back */
+        }, 80));
+      }
+    }, 60 + 850));
+  }
 
   /* Enhancement 5: remove glow once flip is complete */
   _settleTimers.push(setTimeout(() => {
     wrapper.classList.remove('flipping');
-  }, 60 + 850));
+  }, flipDelay + flipMs));
 }
 
 /* ── Canvas particles ── */
@@ -752,7 +944,9 @@ function drawBlob(cx,cy,rx,ry,r,g,b,a) {
   ctx.beginPath(); ctx.arc(cx*(ry/rx),cy,ry,0,Math.PI*2); ctx.fill(); ctx.restore();
 }
 
-const pts = Array.from({length:60},()=>mkPt(true));
+/* On mobile: 30% of desktop particle count to keep canvas rendering light */
+const PTCOUNT = window.innerWidth <= 768 ? Math.round(60 * 0.3) : 60;
+const pts = Array.from({length:PTCOUNT},()=>mkPt(true));
 function mkPt(s) {
   return {
     x: Math.random()*(innerWidth||1440),
@@ -778,7 +972,9 @@ function rloop() {
   }
   requestAnimationFrame(rloop);
 }
-rloop();
+/* On mobile, delay the particle loop until after the card entrance completes (~2680ms).
+   This avoids janky frame drops during the slide-in animation. */
+if (window.innerWidth <= 768) { setTimeout(rloop, 2700); } else { rloop(); }
 
 /* ── Helpers ── */
 const at=(ms,fn)=>setTimeout(fn,ms);
@@ -797,14 +993,29 @@ at(2100,() => {
 at(2300,() => {
   css('shimmer',{opacity:'1'});
   css('eyebrow',{opacity:'1',transform:'translateY(0)'});
+  /* Mobile: slide the #front-inner container into view (38ms ease-out).
+     All card content is children of #front-inner, so this is the entrance. */
+  if (window.innerWidth <= 768) {
+    var fi = document.getElementById('front-inner');
+    if (fi) {
+      fi.style.transition = 'opacity 380ms ease-out, transform 380ms ease-out';
+      fi.style.opacity    = '1';
+      fi.style.transform  = 'translateY(0)';
+    }
+  }
 });
 at(2650,() => css('nm1',{transform:'translateY(0)',opacity:'1'}));
 at(3100,() => css('nm2',{transform:'translateY(0)',opacity:'1'}));
-at(3550,() => css('frule',{opacity:'1',width:'100%'}));
+/* Mobile: divider is 40% wide; desktop: full width of .front-left */
+at(3550,() => css('frule',{opacity:'1',width: window.innerWidth<=768 ? '40%' : '100%'}));
 at(3850,() => css('tagline',{opacity:'1',transform:'translateY(0)'}));
 at(4100,() => css('tags',{opacity:'1'}));
 at(4350,() => css('monogram',{opacity:'1',transform:'scale(1)'}));
-at(4800,() => css('flip-hint',{opacity:'1'}));
+/* Desktop: show "Ventures & connect" flip hint. Mobile: show "TAP TO FLIP" CTA. */
+at(4800,() => {
+  if (window.innerWidth > 768) { css('flip-hint',   {opacity:'1'}); }
+  else                          { css('m-flip-cta', {opacity:'1'}); }
+});
 
 /* ── Tap hint animation sequence (mobile first-visit only) ── */
 /* 1800ms: fade the hint in. Guard: skip if not mobile or gate-passed flag is set. */
@@ -873,6 +1084,21 @@ at(2100, function() {
    ───────────────────────────────────────────────────────────── */
 document.getElementById('flip-hint').onclick = function(e) { flipCard(e); };
 document.getElementById('back-flip').onclick  = function(e) { flipCard(e); };
+
+/* ─────────────────────────────────────────────────────────────
+   Mobile: make the entire card-wrapper tappable to trigger a flip.
+   Only fires when the front face is showing (isFlipped === false).
+   Taps on links (back face contact list, explore button) are ignored.
+   ───────────────────────────────────────────────────────────── */
+if (window.innerWidth <= 768) {
+  document.querySelector('.card-wrapper').addEventListener('click', function(e) {
+    /* Back face is showing — don't intercept; let back-flip handle it */
+    if (isFlipped) return;
+    /* Ignore taps directly on anchor elements (shouldn't exist on front, but safety guard) */
+    if (e.target.closest('a')) return;
+    flipCard(e);
+  });
+}
 </script>
 </body>
 </html>

@@ -423,6 +423,59 @@ body::before {
     opacity: 0;
   }
 }
+
+/* ── Tap-to-continue hint ── */
+/* Hidden on desktop; revealed via the mobile media query below.
+   JS controls the actual fade-in and pulse via animation swaps. */
+#tap-hint {
+  display: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: #52b788;
+  opacity: 0;
+  text-align: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Phase 1: fades the hint in from transparent to 0.35 — played once by JS */
+@keyframes tapFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 0.35; }
+}
+
+/* Phase 2: slow pulse — loops after fade-in completes */
+@keyframes tapPulse {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.55; }
+}
+
+/* ── Mobile: philosophy gate ── */
+/* All rules inside this block are additive — zero desktop styles touched. */
+@media (max-width: 768px) {
+
+  /* Shift the gate overlay so text lands at ~42% from top.
+     translateY(-8%) = -8vh (element fills full viewport via inset:0).
+     Eyes naturally rest slightly above the mathematical centre on phones. */
+  #phil { transform: translateY(-8%); }
+
+  /* Fluid font size so the two lines fit comfortably at all phone widths.
+     line-height 1.3 keeps the pair compact without crowding. */
+  .pl {
+    font-size: clamp(30px, 8vw, 44px);
+    line-height: 1.3;
+    text-align: center;
+  }
+
+  /* Show the hint and give it 32px clearance below the text pair.
+     #phil has gap:6px between flex children, so margin-top:26px → 32px total. */
+  #tap-hint {
+    display: block;
+    margin-top: 26px;
+  }
+}
 </style>
 </head>
 <body>
@@ -433,6 +486,8 @@ body::before {
 <div id="phil">
   <div class="pl" id="pl1">Curious by nature.</div>
   <div class="pl" id="pl2">Optimist by choice.</div>
+  <!-- Tap hint: mobile only. JS fades this in at 1800ms on first visit. -->
+  <div id="tap-hint">tap to continue</div>
 </div>
 
 <!-- Card wrapper — constrains width and clips the 3D flip -->
@@ -750,6 +805,29 @@ at(3850,() => css('tagline',{opacity:'1',transform:'translateY(0)'}));
 at(4100,() => css('tags',{opacity:'1'}));
 at(4350,() => css('monogram',{opacity:'1',transform:'scale(1)'}));
 at(4800,() => css('flip-hint',{opacity:'1'}));
+
+/* ── Tap hint animation sequence (mobile first-visit only) ── */
+/* 1800ms: fade the hint in. Guard: skip if not mobile or gate-passed flag is set. */
+at(1800, function() {
+  var hint = document.getElementById('tap-hint');
+  if (!hint) return;
+  if (window.innerWidth > 768) return;             /* desktop: hint is display:none anyway */
+  if (sessionStorage.getItem('hasVisitedCard')) return; /* returning visitor: gate won't show */
+  /* Phase 1: fade in over 600ms using tapFadeIn keyframe */
+  hint.style.animation = 'tapFadeIn 0.6s ease forwards';
+  /* Phase 2: switch to slow pulse once fade-in completes */
+  setTimeout(function() {
+    hint.style.animation = 'tapPulse 2.5s ease-in-out infinite';
+  }, 600);
+});
+
+/* 2100ms: dismiss the hint in sync with the philosophy lines fading out */
+at(2100, function() {
+  var hint = document.getElementById('tap-hint');
+  if (!hint) return;
+  hint.style.animation = 'none';   /* stop pulse so it doesn't fight opacity */
+  hint.style.opacity   = '0';
+});
 
 /* ─────────────────────────────────────────────────────────────
    ENHANCEMENT 4 — Create ambient background orbs via JS

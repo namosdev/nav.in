@@ -1,12 +1,14 @@
 import Layout from '../components/Layout'
 import { useState, useEffect } from 'react'
 
+// Each tab has its own Substack section feed URL.
+// The API route fetches whichever URL is passed — no category guessing needed.
 const CATEGORIES = [
-  { id:'all',      label:'All Thoughts',       icon:'✍️' },
-  { id:'business', label:'Running a Business', icon:'🏗️' },
-  { id:'life',     label:'Living Life',        icon:'🌱' },
-  { id:'world',    label:'Evolving World',     icon:'🌍' },
-  { id:'engineer', label:'Accidental Engineer', icon:'🔮' },
+  { id:'all',      label:'All Thoughts',       icon:'✍️', feed:'https://namos.substack.com/feed' },
+  { id:'business', label:'Running a Business', icon:'🏗️', feed:'https://namos.substack.com/s/running-a-business' },
+  { id:'life',     label:'Living Life',        icon:'🌱', feed:'https://namos.substack.com/s/living-life' },
+  { id:'world',    label:'Evolving World',     icon:'🌍', feed:'https://namos.substack.com/s/evolving-life' },
+  { id:'engineer', label:'Accidental Engineer', icon:'🔮', feed:'https://namos.substack.com/s/accidental-engineer' },
 ]
 
 function formatDate(str) {
@@ -27,53 +29,38 @@ function truncate(str, n) {
   return w.length > n ? w.slice(0,n).join(' ') + '…' : str
 }
 
-// Map a post to one of the four category tabs.
-// Strategy: check the post's category tags for the exact Substack series name
-// first (Substack sends the series name as a <category> in the RSS feed).
-// Only fall back to keyword guessing when no series name matches.
-function guessCategory(item) {
-  const cats = (item.categories || []).map(c => c.toLowerCase().trim())
-
-  // Direct series-name match — each string mirrors the exact Substack section name
-  if (cats.some(c => c.includes('accidental engineer'))) return 'engineer'
-  if (cats.some(c => c.includes('evolving world')))      return 'world'
-  if (cats.some(c => c.includes('living life')))          return 'life'
-  if (cats.some(c => c.includes('running a business')))  return 'business'
-
-  // Fallback keyword scan across title + all tags (safety net only)
-  const text = ((item.title || '') + ' ' + cats.join(' ')).toLowerCase()
-  if (/startup|founder|product|revenue|customer|sales|execution|venture/.test(text)) return 'business'
-  if (/family|personal|health|mind|habit|learn|gratitude|reflect/.test(text))        return 'life'
-  if (/india|tech|ai|policy|economy|future|society|change/.test(text))               return 'world'
-  return 'business' // default
-}
-
 export default function Thoughts() {
-  const [posts, setPosts]       = useState([])
+  // cache holds already-fetched posts per tab so switching back doesn't re-fetch
+  const [cache, setCache]       = useState({})
   const [loading, setLoading]   = useState(true)
   const [filter, setFilter]     = useState('all')
   const [selected, setSelected] = useState(null)
 
-  useEffect(() => {
-    async function load() {
-      try {
-        // Fetch posts from our server-side API route, which pulls directly
-        // from https://namos.substack.com/feed — no third-party service needed
-        const res  = await fetch('/api/thoughts-feed')
-        const data = await res.json()
-        if (data.items?.length) {
-          setPosts(data.items.map(p => ({ ...p, _cat: guessCategory(p) })))
-        }
-      } catch (e) {
-        console.error('[thoughts] Failed to load feed:', e)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [])
+  // Posts for the active tab — sourced directly from that tab's own Substack feed
+  const posts = cache[filter] || []
 
-  const visible = filter === 'all' ? posts : posts.filter(p => p._cat === filter)
+  // Fetch the active tab's feed when the tab changes; skip if already in cache
+  useEffect(() => {
+    const cat = CATEGORIES.find(c => c.id === filter)
+    if (!cat || cache[filter] !== undefined) return  // nothing to do
+
+    setLoading(true)
+    fetch(`/api/thoughts-feed?url=${encodeURIComponent(cat.feed)}`)
+      .then(r => r.json())
+      .then(data => {
+        setCache(prev => ({ ...prev, [filter]: data.items || [] }))
+      })
+      .catch(err => {
+        console.error('[thoughts] fetch failed:', err)
+        setCache(prev => ({ ...prev, [filter]: [] }))
+      })
+      .finally(() => setLoading(false))
+  // cache is intentionally excluded from deps — we only re-run when filter changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter])
+
+  // The active tab's metadata (used for the section badge on each card)
+  const activeCat = CATEGORIES.find(c => c.id === filter)
 
   return (
     <Layout title="Thoughts" description="Ideas, observations, and lessons from the intersection of running a business, living life, and navigating an evolving world.">
@@ -127,13 +114,11 @@ export default function Thoughts() {
             </div>
           )}
 
-          {!loading && visible.length === 0 && (
+          {!loading && posts.length === 0 && (
             <div style={{ textAlign:'center', padding:'60px 20px' }}>
               <div style={{ fontFamily:'Cormorant Garamond, serif', fontSize:28, marginBottom:12 }}>Thoughts coming soon.</div>
               <p style={{ color:'var(--text-muted)', fontSize:14, marginBottom:24 }}>
-                {posts.length === 0
-                  ? 'The first post is being written. Subscribe to be notified.'
-                  : 'No posts in this category yet.'}
+                The first post is being written. Subscribe to be notified.
               </p>
               <a href="https://substack.com/@navinoswal" target="_blank" rel="noopener" className="btn-primary">
                 Subscribe on Substack ↗
@@ -141,10 +126,9 @@ export default function Thoughts() {
             </div>
           )}
 
-          {!loading && visible.length > 0 && (
+          {!loading && posts.length > 0 && (
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20 }}>
-              {visible.map((post, i) => {
-                const catInfo = CATEGORIES.find(c => c.id === post._cat) || CATEGORIES[1]
+              {posts.map((post, i) => {
                 const isFirst = i === 0 && filter === 'all'
                 return (
                   <div key={i}
@@ -161,9 +145,13 @@ export default function Thoughts() {
                       <div style={{ fontFamily:'JetBrains Mono, monospace', fontSize:10, letterSpacing:'0.18em', textTransform:'uppercase', color:'var(--text-muted)' }}>
                         {formatDate(post.pubDate)}
                       </div>
-                      <span style={{ fontSize:11, padding:'3px 10px', borderRadius:100, background:'var(--sage-bg)', color:'var(--sage)', fontWeight:600 }}>
-                        {catInfo.icon} {catInfo.label}
-                      </span>
+                      {/* Show section badge only when viewing a specific section tab —
+                          on "All Thoughts" we don't know which section each post belongs to */}
+                      {filter !== 'all' && activeCat && (
+                        <span style={{ fontSize:11, padding:'3px 10px', borderRadius:100, background:'var(--sage-bg)', color:'var(--sage)', fontWeight:600 }}>
+                          {activeCat.icon} {activeCat.label}
+                        </span>
+                      )}
                     </div>
                     <h3 style={{
                       fontFamily:'Cormorant Garamond, serif',
@@ -198,8 +186,6 @@ export default function Thoughts() {
             background:'rgba(15,23,42,0.65)',
             backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)',
             display:'flex', alignItems:'flex-start', justifyContent:'center',
-            // clamp top padding so the modal sits lower on desktop but
-            // doesn't waste space on mobile
             padding:'clamp(16px,6vh,72px) 16px 48px',
             overflowY:'auto',
           }}>

@@ -7,7 +7,7 @@ const CATEGORIES = [
   { id:'all',      label:'All Thoughts',       icon:'✍️', feed:'https://namos.substack.com/feed' },
   { id:'business', label:'Running a Business', icon:'🏗️', feed:'https://namos.substack.com/s/running-a-business' },
   { id:'life',     label:'Living Life',        icon:'🌱', feed:'https://namos.substack.com/s/living-life' },
-  { id:'world',    label:'Evolving World',     icon:'🌍', feed:'https://namos.substack.com/s/evolving-life' },
+  { id:'world',    label:'Evolving World',     icon:'🌍', feed:'https://namos.substack.com/s/evolving-world' },
   { id:'engineer', label:'Accidental Engineer', icon:'🔮', feed:'https://namos.substack.com/s/accidental-engineer' },
 ]
 
@@ -84,7 +84,7 @@ export default function Thoughts() {
         </div>
       </div>
 
-      {/* ── CATEGORY FILTER ── */}
+      {/* ── CATEGORY FILTER — hidden until section feeds are fully set up ──
       <section className="section-sm" style={{ paddingBottom:0 }}>
         <div className="wrap">
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
@@ -104,6 +104,7 @@ export default function Thoughts() {
           </div>
         </div>
       </section>
+      ── */}
 
       {/* ── POSTS ── */}
       <section className="section">

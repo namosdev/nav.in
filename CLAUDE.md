@@ -27,7 +27,7 @@ pages/
 ├── index.js        → Home (photo bg + avatar + visitor widget + question widget)
 ├── about.js        → Full story
 ├── ventures.js     → DB-driven: UNITS + UNIVEN from Supabase
-├── thoughts.js     → Substack RSS (4 series tabs)
+├── thoughts.js     → Substack RSS (main feed only — section tabs hidden)
 ├── now.js          → DB-driven: now_content table
 ├── stack.js        → DB-driven: stack_items table (grouped by category)
 ├── connect.js      → Meeting form
@@ -77,6 +77,13 @@ vercel.json         → Cron: /api/ping every 6 days at 06:00 UTC
 - Reason: admin is a tool, not a branding surface
 - Still use Outfit font and sage #2d6a4f as primary color
 
+## Mobile Design Philosophy (Phase 3B — locked)
+- Mobile is an independent design surface, not a scaled-down desktop
+- Every page is redesigned ground-up for mobile as if the desktop version does not exist
+- Micro-animations must earn their place — delight or guide attention, never decoration
+- One page at a time. Spec locked in Claude.ai before any Claude Code prompt is written
+- Start page: /card
+
 ## Stack Categories (locked — do not change)
 Five buckets for stack_items.category: think → design → build → test → ship
 - think: Claude, Gemini
@@ -93,7 +100,7 @@ Five buckets for stack_items.category: think → design → build → test → s
 | stack_items | status column + think/design/build/test/ship categories |
 | visitor_categories | 5 human visitor categories seeded |
 | category_visits | sentiment column live |
-| agent_visits | AI agent auto-log |
+| agent_visits | AI agent auto-log (Layer 1 of agentic architecture) |
 | homepage_widget | Active question live |
 | question_responses | Visitor votes |
 
@@ -103,6 +110,14 @@ Five buckets for stack_items.category: think → design → build → test → s
 - reading
 - thinking
 Always use .maybeSingle() not .single() on this table.
+
+## /thoughts Page — RSS Notes (verified Apr 14)
+- Main feed URL: https://namos.substack.com/feed — working correctly
+- Substack does NOT expose section-level RSS feeds — confirmed Apr 14
+- Section filter tabs are hidden in the UI until this is resolved
+- Do not attempt to re-enable tabs or add section feed URLs without explicit instruction
+- Modal readability: fixed Apr 14 (responsive padding + prose typography)
+- Evolving World Substack slug: evolving-world (web URL) — feed endpoint not available
 
 ## Environment Variables
 These exist in .env.local (never commit this file):
@@ -152,19 +167,21 @@ These exist in .env.local (never commit this file):
 - Domain: navinoswal.com (primary) + www
 - Full design system locked
 - Auth: magic link, dual-layer security, admin email restriction
-- Visiting card: /card with particle effects, flip animation
+- Visiting card: /card with particle effects, flip animation, sessionStorage gate
 - Visitor + Agent counter: human self-identification widget + AI agent auto-log
 - Homepage enhancements: monthly question widget, sentiment strip, hero photo + avatar
 - Phase 3A: Admin edit forms for /admin/now, /admin/ventures, /admin/stack
 - DB-driven public pages: ventures, now, stack all reading from Supabase
 - Supabase keepalive cron: /api/ping every 6 days
-- Substack content: 3 stories final draft, Accidental Engineer series created
+- /now fetch bug fixed: focus_text field name corrected (Apr 14)
+- /now developer note removed from public page (Apr 14)
+- /thoughts RSS: main feed pulling correctly, modal readable (Apr 14)
+- /thoughts section tabs hidden: Substack has no section RSS feeds (Apr 14)
+- Substack content: 3 stories scheduled, Accidental Engineer series live
 
 ### Pending (in priority order)
-- Fix /now page fetch — focus_text field name mismatch in pages/now.js
-- Remove developer note box from public /now page
+- Phase 3B: Mobile redesign — ground-up, one page at a time, starting with /card
 - Fix /stack public page category display (categories not rendering correctly)
-- Phase 3B: /m/ route migration + mobile polish (deliberately postponed — do last)
 - Phase 4: Connect form end-to-end
 
 ## Rules for Claude Code
@@ -178,6 +195,7 @@ These exist in .env.local (never commit this file):
 8. ALWAYS follow the Deployment Checklist before marking any task done
 9. ALWAYS verify Supabase field names against actual table schema before writing fetch logic
 10. NEVER use .single() — always use .maybeSingle() for single-row Supabase queries
+11. NEVER re-enable /thoughts section tabs without explicit instruction — Substack has no section RSS feeds
 
 ---
 

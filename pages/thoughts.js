@@ -26,12 +26,24 @@ function truncate(str, n) {
   return w.length > n ? w.slice(0,n).join(' ') + '…' : str
 }
 
-// Very basic category guesser based on tags / title keywords
+// Map a post to one of the three category tabs.
+// Strategy: check the post's category tags for the exact Substack series name
+// first (Substack sends the series name as a <category> in the RSS feed).
+// Only fall back to title/keyword guessing when no series name matches.
 function guessCategory(item) {
-  const text = ((item.title || '') + ' ' + (item.categories || []).join(' ')).toLowerCase()
-  if (/business|startup|founder|product|revenue|customer|sales|execution|build|venture/.test(text)) return 'business'
-  if (/life|family|personal|health|mind|habit|learn|gratitude|reflect/.test(text)) return 'life'
-  if (/india|world|tech|ai|policy|economy|future|society|change/.test(text)) return 'world'
+  const cats = (item.categories || []).map(c => c.toLowerCase().trim())
+
+  // Direct series-name match — handles "Evolving World", "Living Life",
+  // "Running a Business" exactly as Substack publishes them
+  if (cats.some(c => c.includes('evolving world')))     return 'world'
+  if (cats.some(c => c.includes('living life')))         return 'life'
+  if (cats.some(c => c.includes('running a business'))) return 'business'
+
+  // Fallback keyword scan across title + all tags
+  const text = ((item.title || '') + ' ' + cats.join(' ')).toLowerCase()
+  if (/startup|founder|product|revenue|customer|sales|execution|venture/.test(text)) return 'business'
+  if (/family|personal|health|mind|habit|learn|gratitude|reflect/.test(text))        return 'life'
+  if (/india|tech|ai|policy|economy|future|society|change/.test(text))               return 'world'
   return 'business' // default
 }
 
@@ -185,11 +197,19 @@ export default function Thoughts() {
             background:'rgba(15,23,42,0.65)',
             backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)',
             display:'flex', alignItems:'flex-start', justifyContent:'center',
-            padding:'80px 20px 40px', overflowY:'auto'
+            // clamp top padding so the modal sits lower on desktop but
+            // doesn't waste space on mobile
+            padding:'clamp(16px,6vh,72px) 16px 48px',
+            overflowY:'auto',
           }}>
-          <div className="glass" style={{ maxWidth:720, width:'100%', padding:'52px 56px', position:'relative', animation:'modalIn 0.35s ease' }}>
+          {/* Panel — comfortable max-width and responsive horizontal padding */}
+          <div className="glass" style={{
+            maxWidth:680, width:'100%',
+            padding:'40px clamp(24px,5vw,48px)',
+            position:'relative', animation:'modalIn 0.35s ease',
+          }}>
             <button onClick={() => setSelected(null)} style={{
-              position:'absolute', top:20, right:20, width:36, height:36, borderRadius:'50%',
+              position:'absolute', top:16, right:16, width:36, height:36, borderRadius:'50%',
               border:'none', background:'rgba(255,255,255,0.8)', cursor:'pointer', fontSize:16,
               display:'flex', alignItems:'center', justifyContent:'center', color:'var(--text-muted)'
             }}>✕</button>
@@ -197,7 +217,7 @@ export default function Thoughts() {
             <div style={{ fontFamily:'JetBrains Mono, monospace', fontSize:11, letterSpacing:'0.18em', textTransform:'uppercase', color:'var(--text-muted)', marginBottom:14 }}>
               {formatDate(selected.pubDate)}
             </div>
-            <h2 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:'clamp(26px,3.5vw,40px)', fontWeight:600, lineHeight:1.15, marginBottom:20 }}>
+            <h2 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:'clamp(24px,3.5vw,38px)', fontWeight:600, lineHeight:1.2, marginBottom:20 }}>
               {selected.title}
             </h2>
             {(selected.categories || []).length > 0 && (
@@ -205,7 +225,8 @@ export default function Thoughts() {
                 {selected.categories.map(t => <span key={t} className="mono-tag mt-sage">{t}</span>)}
               </div>
             )}
-            <div style={{ fontSize:15, lineHeight:1.85, color:'var(--text-mid)' }}
+            {/* Rendered HTML body — prose class provides readable typography */}
+            <div className="modal-prose" style={{ fontSize:15, lineHeight:1.85, color:'var(--text-mid)' }}
               dangerouslySetInnerHTML={{ __html: selected.content || selected.description || '' }}/>
             <hr style={{ border:'none', borderTop:'1px solid rgba(45,106,79,0.12)', margin:'28px 0' }}/>
             <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
@@ -231,6 +252,21 @@ export default function Thoughts() {
 
       <style>{`
         @keyframes modalIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+        /* ── Prose styles for Substack HTML rendered inside the modal ── */
+        .modal-prose p            { margin: 0 0 1em; }
+        .modal-prose h2           { font-family:'Cormorant Garamond',serif; font-size:1.45em; font-weight:600; line-height:1.2; margin:1.6em 0 0.5em; }
+        .modal-prose h3           { font-family:'Cormorant Garamond',serif; font-size:1.2em;  font-weight:600; line-height:1.25; margin:1.3em 0 0.4em; }
+        .modal-prose a            { color:var(--sage); text-decoration:underline; }
+        .modal-prose strong, .modal-prose b { font-weight:600; }
+        .modal-prose em, .modal-prose i     { font-style:italic; }
+        .modal-prose img          { max-width:100%; height:auto; border-radius:8px; margin:1em 0; display:block; }
+        .modal-prose blockquote   { border-left:3px solid var(--sage); margin:1.2em 0; padding:0.5em 1em; background:rgba(45,106,79,0.05); font-style:italic; border-radius:0 6px 6px 0; }
+        .modal-prose ul, .modal-prose ol { padding-left:1.4em; margin:0.6em 0 1em; }
+        .modal-prose li           { margin-bottom:0.35em; line-height:1.75; }
+        .modal-prose hr           { border:none; border-top:1px solid rgba(45,106,79,0.15); margin:1.5em 0; }
+        .modal-prose pre          { background:rgba(0,0,0,0.05); border-radius:6px; padding:1em; overflow-x:auto; font-size:13px; }
+
         @media(max-width:860px){
           div[style*="grid-template-columns: repeat(3"]{grid-template-columns:1fr!important;}
           div[style*="grid-column: span 2"]{grid-column:span 1!important;}

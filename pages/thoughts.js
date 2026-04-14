@@ -8,11 +8,6 @@ const CATEGORIES = [
   { id:'world',    label:'Evolving World',     icon:'🌍' },
 ]
 
-const SUBSTACK_FEEDS = [
-  'https://navinoswal.substack.com/feed',
-  'https://substack.com/@navinoswal/feed',
-]
-
 function formatDate(str) {
   const d = new Date(str)
   if (isNaN(d)) return ''
@@ -48,18 +43,19 @@ export default function Thoughts() {
 
   useEffect(() => {
     async function load() {
-      for (const url of SUBSTACK_FEEDS) {
-        try {
-          const res  = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}&count=18`)
-          const data = await res.json()
-          if (data.status === 'ok' && data.items?.length) {
-            setPosts(data.items.map(p => ({ ...p, _cat: guessCategory(p) })))
-            setLoading(false)
-            return
-          }
-        } catch(e) { /* try next */ }
+      try {
+        // Fetch posts from our server-side API route, which pulls directly
+        // from https://namos.substack.com/feed — no third-party service needed
+        const res  = await fetch('/api/thoughts-feed')
+        const data = await res.json()
+        if (data.items?.length) {
+          setPosts(data.items.map(p => ({ ...p, _cat: guessCategory(p) })))
+        }
+      } catch (e) {
+        console.error('[thoughts] Failed to load feed:', e)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
     load()
   }, [])

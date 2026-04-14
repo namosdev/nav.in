@@ -6,6 +6,7 @@ const CATEGORIES = [
   { id:'business', label:'Running a Business', icon:'🏗️' },
   { id:'life',     label:'Living Life',        icon:'🌱' },
   { id:'world',    label:'Evolving World',     icon:'🌍' },
+  { id:'engineer', label:'Accidental Engineer', icon:'🔮' },
 ]
 
 function formatDate(str) {
@@ -26,20 +27,20 @@ function truncate(str, n) {
   return w.length > n ? w.slice(0,n).join(' ') + '…' : str
 }
 
-// Map a post to one of the three category tabs.
+// Map a post to one of the four category tabs.
 // Strategy: check the post's category tags for the exact Substack series name
 // first (Substack sends the series name as a <category> in the RSS feed).
-// Only fall back to title/keyword guessing when no series name matches.
+// Only fall back to keyword guessing when no series name matches.
 function guessCategory(item) {
   const cats = (item.categories || []).map(c => c.toLowerCase().trim())
 
-  // Direct series-name match — handles "Evolving World", "Living Life",
-  // "Running a Business" exactly as Substack publishes them
-  if (cats.some(c => c.includes('evolving world')))     return 'world'
-  if (cats.some(c => c.includes('living life')))         return 'life'
-  if (cats.some(c => c.includes('running a business'))) return 'business'
+  // Direct series-name match — each string mirrors the exact Substack section name
+  if (cats.some(c => c.includes('accidental engineer'))) return 'engineer'
+  if (cats.some(c => c.includes('evolving world')))      return 'world'
+  if (cats.some(c => c.includes('living life')))          return 'life'
+  if (cats.some(c => c.includes('running a business')))  return 'business'
 
-  // Fallback keyword scan across title + all tags
+  // Fallback keyword scan across title + all tags (safety net only)
   const text = ((item.title || '') + ' ' + cats.join(' ')).toLowerCase()
   if (/startup|founder|product|revenue|customer|sales|execution|venture/.test(text)) return 'business'
   if (/family|personal|health|mind|habit|learn|gratitude|reflect/.test(text))        return 'life'

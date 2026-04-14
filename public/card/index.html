@@ -635,6 +635,155 @@ body::before {
   #scene { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
   /* Remove the 2deg X tilt on the flipped state for mobile */
   #scene.flipped { transform: rotateY(180deg) rotateX(0deg); }
+
+  /* ── Front face: no scroll needed (content fits in 100dvh) ── */
+  #front { overflow-y: hidden; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MOBILE — Back face redesign
+   All rules below are additive at ≤768px. Zero desktop rules touched.
+   ══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── Back face: scrollable single column, top-anchored ── */
+  /* Override desktop:  padding clamp, justify-content:center  */
+  /* Scroll is needed because the stacked content can exceed 100dvh on small phones. */
+  #back {
+    padding: 0 20px;
+    justify-content: flex-start;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;  /* smooth momentum scroll on iOS */
+    touch-action: pan-y;               /* allow vertical pan inside 3-D layer */
+  }
+
+  /* ── Hide the desktop decorative bottom gradient line ── */
+  /* It's position:absolute at the very bottom of #back; with scrollable content
+     it would sit at an arbitrary scroll position and look wrong. */
+  #back::before { display: none; }
+
+  /* ── Back grid: single column (override 2-col grid) ── */
+  .back-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: 100%;
+    max-width: none;
+  }
+
+  /* ── Ventures section: 48px breathing room from the card top ── */
+  .back-grid > div:first-child { margin-top: 48px; }
+
+  /* ── Connect section: 32px gap below Ventures ── */
+  .back-grid > div + div { margin-top: 32px; }
+
+  /* ── Section labels: amber, 10px, 0.2em spacing, no extending line ── */
+  .b-section-label {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    margin-bottom: 16px;
+  }
+  /* Hide the hairline that extends to the right of each label on desktop */
+  .b-section-label::after { display: none; }
+
+  /* ── Venture dot: 8px ── */
+  .v-dot { width: 8px; height: 8px; }
+
+  /* ── Venture name: 15px, 0.1em ── */
+  .v-name { font-size: 15px; letter-spacing: 0.1em; }
+
+  /* ── Venture description: 14px ── */
+  .v-desc { font-size: 14px; }
+
+  /* ── Venture link: 13px, 44px minimum tap target ── */
+  .v-link {
+    font-size: 13px;
+    min-height: 44px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    align-items: center;
+    display: flex;
+  }
+
+  /* ── Venture divider: darker sage at 40% (replaces the very faint desktop version) ── */
+  .venture {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom-color: rgba(45,106,79,0.4);
+  }
+  /* Remove border on the last venture (UNIVEN) */
+  .venture:last-child { border-bottom-color: transparent; }
+
+  /* ── Contact links: 48px tap target, active tint for tactile feedback ── */
+  .clink {
+    padding: 12px 0;
+    min-height: 48px;
+    border-bottom-color: rgba(255,255,255,0.06);
+  }
+  .clink:active { background: rgba(82,183,136,0.08); }
+
+  /* ── Contact icon: 18px on mobile ── */
+  /* !important needed to override the inline font-size:9px on the LinkedIn icon */
+  .cicon { font-size: 18px !important; width: 24px; }
+
+  /* ── Contact label: 14px Outfit ── */
+  .clabel { font-size: 14px; }
+
+  /* ── Remove the desktop 28px margin-bottom on contact-list ── */
+  /* The 28px gap below the contact section is provided by .back-bottom's margin-top below. */
+  .contact-list { margin-bottom: 0; }
+
+  /* ── Back-bottom: pull out of absolute positioning and into normal flow ── */
+  /* On desktop: position:absolute + bottom/left/right clamp values.
+     On mobile: position:static so it flows after .back-grid in the scroll column. */
+  .back-bottom {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    padding: 0;          /* remove desktop left/right clamp padding */
+    margin-top: 28px;    /* 28px gap between Connect section and philosophy payoff */
+  }
+
+  /* ── Philosophy payoff: 16px italic Cormorant, left-aligned ── */
+  .mission {
+    font-size: 16px;
+    margin-bottom: 20px;
+    text-align: left;
+  }
+
+  /* ── Explore CTA: full-width pill, 52px, amber border ── */
+  .explore-btn {
+    width: 100%;
+    height: 52px;
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    border-color: #fbbf24;  /* amber — overrides the desktop sage-tinted border */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    animation: none;        /* remove desktop btnGlow pulse on mobile */
+  }
+  /* Tactile feedback: amber tint on tap */
+  .explore-btn:active { background: rgba(251,191,36,0.1); }
+
+  /* ── ← FRONT flip trigger: centred, 44px tap area ── */
+  /* This is the ONLY element that flips the card back on mobile.
+     The card-wrapper click listener returns early when isFlipped=true. */
+  #back-flip {
+    margin-top: 16px;
+    margin-bottom: 40px;
+    padding: 14px 0;     /* (14+14 + ~11px text) ≈ 44px tap area */
+    min-height: 44px;
+    width: 100%;
+    font-size: 11px;
+    color: rgba(82,183,136,0.7);
+    text-align: center;
+    justify-content: center;   /* element already has display:flex from desktop CSS */
+    animation: none;           /* remove desktop navGlow pulse */
+  }
 }
 </style>
 </head>

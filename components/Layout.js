@@ -132,9 +132,10 @@ export default function Layout({ children, title, description }) {
       </Head>
 
       {/* Animated background — shared across all pages */}
+      {/* b3 and b4 are hidden on mobile via .mobile-blob-hidden (see globals.css) */}
       <div className="bg-layer">
         <div className="blob b1" /><div className="blob b2" />
-        <div className="blob b3" /><div className="blob b4" />
+        <div className="blob b3 mobile-blob-hidden" /><div className="blob b4 mobile-blob-hidden" />
       </div>
 
       <Nav />

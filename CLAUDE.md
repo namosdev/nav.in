@@ -24,7 +24,7 @@ Owner is non-technical — all code must be clean, well-commented, and self-expl
 ```
 pages/
 ├── _app.js
-├── index.js        → Home (photo bg + avatar + visitor widget + question widget)
+├── index.js        → Home (mobile redesign ✅ Apr 17)
 ├── about.js        → Full story
 ├── ventures.js     → DB-driven: UNITS + UNIVEN from Supabase
 ├── thoughts.js     → Substack RSS (main feed only — section tabs hidden)
@@ -57,7 +57,7 @@ public/
 │   └── navin-profile-avatar.webp
 ├── robots.txt
 └── card/
-    ├── index.html           → Visiting card (standalone, no nav/footer)
+    ├── index.html           → Visiting card (standalone, no nav/footer — mobile redesign ✅ Apr 17)
     └── navin-card-print.pdf
 vercel.json         → Cron: /api/ping every 6 days at 06:00 UTC
 ```
@@ -77,12 +77,44 @@ vercel.json         → Cron: /api/ping every 6 days at 06:00 UTC
 - Reason: admin is a tool, not a branding surface
 - Still use Outfit font and sage #2d6a4f as primary color
 
-## Mobile Design Philosophy (Phase 3B — locked)
+## Mobile Design Philosophy (Phase 3B — in progress)
 - Mobile is an independent design surface, not a scaled-down desktop
 - Every page is redesigned ground-up for mobile as if the desktop version does not exist
 - Micro-animations must earn their place — delight or guide attention, never decoration
-- One page at a time. Spec locked in Claude.ai before any Claude Code prompt is written
-- Start page: /card
+- One page at a time. Spec is always locked in Claude.ai before any Claude Code prompt
+- Do NOT copy interaction patterns from one page to another without deliberate justification
+  (e.g. the swipe mechanic on /card does NOT automatically belong on other pages)
+
+### Phase 3B Mobile Redesign — Page Status
+| Page | Status | Notes |
+|---|---|---|
+| /card (public/card/index.html) | ✅ Complete — Apr 17 | Philosophy gate · flip mechanic · full-bleed mobile |
+| index.js (homepage) | ✅ Complete — Apr 17 | Photo bg removed · 2 blobs · identity + visitor widget above fold |
+| about.js | ⏳ Next | Spec to be locked in Claude.ai before building |
+| ventures.js | ⏳ Pending | After about |
+| thoughts.js | ⏳ Pending | |
+| now.js | ⏳ Pending | |
+| stack.js | ⏳ Pending | |
+| connect.js | ⏳ Pending | |
+
+### Homepage Mobile — Key Decisions (locked Apr 17)
+- navin-hero.webp: display: none on mobile (photo bg removed)
+- Gradient blobs: 2 only (class .mobile-blob-hidden on extras) · scale(0.55) · opacity 0.30
+- Layout: single scrollable column · hamburger nav retained (~56px)
+- Above fold: avatar (80px) → name stacked → tagline → visitor category widget
+- Visitor chips: CSS grid 2-per-row · 5th chip centered alone · min-height 48px
+- Below fold: divider → question widget → sentiment strip
+- Sentiment strip: padding-bottom env(safe-area-inset-bottom) for iOS Safari
+- Entrance: fadeSlideUp keyframe · stagger 80ms per element
+
+### /card Mobile — Key Decisions (locked Apr 17)
+- Philosophy gate (Screen 0): clamp(30px, 8vw, 44px) · 42% vertical · tap-to-continue hint
+- Front face: single column center · avatar 72px · name stacked · TAP TO FLIP ○ (amber)
+- Front face tap target: entire screen triggers flip
+- Back face: single column · full-row connect links (min-height 48px) · full-width EXPLORE button
+- Back face: ONLY ← FRONT triggers flip (no full-screen tap on back)
+- Venture copy: UNITS = "Simplest end to end sales management for real estate" · UNIVEN = "Universal Business Identity for the digital economy"
+- Status dots: sage = live · amber = in development · removed in print version
 
 ## Stack Categories (locked — do not change)
 Five buckets for stack_items.category: think → design → build → test → ship
@@ -168,8 +200,10 @@ These exist in .env.local (never commit this file):
 - Full design system locked
 - Auth: magic link, dual-layer security, admin email restriction
 - Visiting card: /card with particle effects, flip animation, sessionStorage gate
+- /card mobile redesign: philosophy gate · flip mechanic · full-bleed single column (Apr 17)
 - Visitor + Agent counter: human self-identification widget + AI agent auto-log
 - Homepage enhancements: monthly question widget, sentiment strip, hero photo + avatar
+- Homepage mobile redesign: photo bg removed · 2 blobs · identity layer + visitor widget above fold (Apr 17)
 - Phase 3A: Admin edit forms for /admin/now, /admin/ventures, /admin/stack
 - DB-driven public pages: ventures, now, stack all reading from Supabase
 - Supabase keepalive cron: /api/ping every 6 days
@@ -180,9 +214,14 @@ These exist in .env.local (never commit this file):
 - Substack content: 3 stories scheduled, Accidental Engineer series live
 
 ### Pending (in priority order)
-- Phase 3B: Mobile redesign — ground-up, one page at a time, starting with /card
-- Fix /stack public page category display (categories not rendering correctly)
-- Phase 4: Connect form end-to-end
+1. Phase 3B mobile redesign — about.js is next
+   → Spec locked in Claude.ai before any Claude Code prompt
+   → Then: ventures · thoughts · now · stack · connect (one page per session)
+   → Test on actual phone after every merge — not just DevTools
+   → iOS Safari: check bottom bar clipping on every page
+2. Fix /stack public page category display (known bug — categories not rendering correctly)
+   → Trigger phrase in Claude.ai: "Fix stack page categories"
+3. Phase 4: Connect form end-to-end testing
 
 ## Rules for Claude Code
 1. NEVER commit directly to main (exception: docs-only files like CLAUDE.md)
@@ -196,6 +235,8 @@ These exist in .env.local (never commit this file):
 9. ALWAYS verify Supabase field names against actual table schema before writing fetch logic
 10. NEVER use .single() — always use .maybeSingle() for single-row Supabase queries
 11. NEVER re-enable /thoughts section tabs without explicit instruction — Substack has no section RSS feeds
+12. NEVER copy a mobile interaction pattern from one page to another without explicit instruction
+    (Each page earns its own mobile interaction design from first principles)
 
 ---
 
@@ -226,7 +267,8 @@ in the PR description.
 ### Testing
 - [ ] Tested on preview URL before merging to main?
 - [ ] Auth flow tested end to end?
-- [ ] Checked on mobile view?
+- [ ] Checked on actual phone (not just DevTools) for mobile pages?
+- [ ] iOS Safari bottom bar clipping checked for mobile pages?
 
 This checklist is non-negotiable. No PR should be merged without
 confirming all relevant items.

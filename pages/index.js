@@ -392,7 +392,8 @@ export default function Home() {
         }} />
 
         {/* ── HERO ── all content sits at zIndex 1 above the overlay layers ── */}
-        <section style={{
+        {/* hero-section-mobile: CSS class used to override min-height on mobile */}
+        <section className="hero-section-mobile" style={{
           minHeight: '100vh',
           display: 'flex',
           alignItems: 'center',
@@ -401,6 +402,30 @@ export default function Home() {
           zIndex: 1,
         }}>
         <div className="wrap" style={{ width:'100%', position:'relative', zIndex:1 }}>
+
+          {/* ══════════════════════════════════════════════════════
+              HERO MOBILE V2 — New mobile layout (Phase 3B)
+              Only visible at ≤768px. Shows avatar, name, tagline.
+              Desktop grid (.hero-desktop-only) and old tab switcher
+              (.hero-mobile-only) are both hidden at this breakpoint.
+              ══════════════════════════════════════════════════════ */}
+          <div className="mobile-hero-v2">
+            {/* Avatar — 80×80, sage ring, entrance animation */}
+            <img
+              src="/images/navin-profile-avatar.webp"
+              alt="Navin Oswal"
+              className="mobile-hero-avatar"
+            />
+            {/* Name — two lines, large display font */}
+            <div className="mobile-hero-name">
+              Navin<br/>Oswal
+            </div>
+            {/* Tagline — short brand phrase */}
+            <div className="mobile-hero-tagline">
+              Curious by Nature. Optimist by Choice.
+            </div>
+          </div>
+
           {/* data-hero-grid: triggers the responsive CSS at max-width:860px (see <style> below)
               — collapses the two-column desktop layout to single-column on mobile.
               hero-desktop-only: hides this grid at ≤768px (replaced by tab switcher below). */}
@@ -684,13 +709,13 @@ export default function Home() {
           ══════════════════════════════════════════════════════ */}
       <section id="visitor-chips" className="section-sm" style={{ position: 'relative', zIndex: 1 }}>
         <div className="wrap">
-          <div className="glass reveal" style={{
+          <div className="glass reveal visitor-chips-card" style={{
             padding: '28px 32px',
             border: '1px solid rgba(45,106,79,0.18)',
           }}>
 
-            {/* Section label */}
-            <div style={{
+            {/* Section label — visitor-section-label allows mobile CSS overrides */}
+            <div className="visitor-section-label" style={{
               fontFamily:    'JetBrains Mono, monospace',
               fontSize:      10,
               letterSpacing: '0.18em',
@@ -703,7 +728,7 @@ export default function Home() {
 
             {/* ── Chips grid ──
                 Desktop: flex row (chips wrap naturally if needed).
-                Mobile:  2-column grid (see CSS below). */}
+                Mobile:  2-column grid, 5th chip spans full width (see CSS below). */}
             <div className="identity-chips-grid">
               {CATEGORIES.map(cat => {
                 const isSelected  = selectedSlug === cat.slug
@@ -734,9 +759,20 @@ export default function Home() {
                 )
               })}
             </div>
+
+            {/* Total count — mobile only, hidden on desktop via CSS */}
+            {!countsError && counts && (
+              <div className="visitor-count-text">
+                {Object.values(counts.category_breakdown || {}).reduce((a, b) => a + b, 0) +
+                  Object.values(optimisticCounts).reduce((a, b) => a + b, 0)} visitors identified
+              </div>
+            )}
           </div>
         </div>
       </section>
+
+      {/* Mobile-only divider between chips and question widget */}
+      <hr className="mobile-section-divider" aria-hidden="true" />
 
       {/* ══════════════════════════════════════════════════════
           PART 2 — MONTHLY QUESTION WIDGET
@@ -769,8 +805,8 @@ export default function Home() {
                 QUESTION OF THE MONTH
               </div>
 
-              {/* Question text — Cormorant Garamond display font */}
-              <p style={{
+              {/* Question text — question-text class allows mobile font/alignment override */}
+              <p className="question-text" style={{
                 fontFamily:   'Cormorant Garamond, serif',
                 fontSize:     'clamp(20px, 2.4vw, 28px)',
                 fontStyle:    'italic',
@@ -1454,6 +1490,195 @@ export default function Home() {
           }
           .sentiment-question { white-space: normal; }
         }
+
+        /* ══════════════════════════════════════════════════════
+           PHASE 3B — MOBILE LAYOUT OVERRIDES (≤768px)
+           All rules below are additive. Desktop unchanged.
+           ══════════════════════════════════════════════════════ */
+
+        /* ── New mobile hero — hidden on desktop, shown on mobile ── */
+        .mobile-hero-v2 { display: none; }
+
+        @media (max-width: 768px) {
+
+          /* CHANGE 1: Hide the hero photo background on mobile.
+             The overlay and gradient blobs remain; only the photo is removed. */
+          .photo-zone {
+            background-image: none !important;
+          }
+
+          /* CHANGE 3: Hide old tab switcher; show new mobile hero instead */
+          .hero-mobile-only { display: none !important; }
+          .mobile-hero-v2 {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0 20px;
+            text-align: center;
+          }
+
+          /* CHANGE 3: Hero section — no full-viewport height on mobile */
+          .hero-section-mobile {
+            min-height: auto !important;
+            align-items: flex-start !important;
+            padding-bottom: 0 !important;
+          }
+
+          /* CHANGE 4: Avatar — 80×80, sage ring, entrance animation */
+          .mobile-hero-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            object-position: center top;
+            border: 2px solid rgba(82,183,136,0.4);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            display: block;
+            margin: 24px auto 0;
+            animation: fadeSlideUp 350ms ease-out both;
+          }
+
+          /* CHANGE 5: Name — two-line display, large serif */
+          .mobile-hero-name {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: clamp(44px, 11vw, 58px);
+            font-weight: 600;
+            line-height: 1.0;
+            letter-spacing: -0.025em;
+            text-align: center;
+            margin-top: 16px;
+            color: var(--text);
+            animation: fadeSlideUp 350ms ease-out 80ms both;
+          }
+
+          /* CHANGE 6: Tagline */
+          .mobile-hero-tagline {
+            font-family: 'Outfit', sans-serif;
+            font-size: 14px;
+            text-align: center;
+            max-width: 260px;
+            margin: 10px auto 0;
+            opacity: 0.75;
+            line-height: 1.6;
+            color: var(--text-mid);
+            animation: fadeSlideUp 350ms ease-out 160ms both;
+          }
+
+          /* CHANGE 7: Visitor chips — section label override */
+          .visitor-section-label {
+            font-size: 11px !important;
+            letter-spacing: 0.08em !important;
+            text-align: center !important;
+            margin-top: 20px !important;
+          }
+
+          /* Visitor chips card — entrance animation (overrides reveal) */
+          .visitor-chips-card,
+          .visitor-chips-card.reveal,
+          .visitor-chips-card.reveal.anim,
+          .visitor-chips-card.reveal.anim.on {
+            opacity: 1 !important;
+            transform: none !important;
+            transition: none !important;
+            animation: fadeSlideUp 350ms ease-out 240ms both !important;
+          }
+
+          /* Chips — min tap height, centered content */
+          .identity-chip {
+            min-height: 48px !important;
+            justify-content: center !important;
+          }
+
+          /* 5th chip spans both columns, capped at 50% width */
+          .identity-chips-grid > button:last-child {
+            grid-column: 1 / -1;
+            max-width: 50%;
+            margin-left: auto;
+            margin-right: auto;
+          }
+
+          /* Chips grid — entrance animation */
+          .identity-chips-grid {
+            animation: fadeSlideUp 350ms ease-out 320ms both;
+          }
+
+          /* Visitor count text — mobile only (hidden on desktop via display:none default) */
+          .visitor-count-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            text-align: center;
+            opacity: 0.6;
+            margin-top: 10px;
+            color: var(--text-muted);
+          }
+
+          /* CHANGE 8: Mobile section divider — shown between chips and question */
+          .mobile-section-divider {
+            display: block;
+            border: none;
+            border-top: 1px solid rgba(82, 183, 136, 0.3);
+            width: 80%;
+            margin: 28px auto;
+          }
+
+          /* Question text — Outfit 16px, centered */
+          .question-text {
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 16px !important;
+            font-style: normal !important;
+            text-align: center !important;
+            max-width: 300px !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+          }
+
+          /* Vote buttons — full-width stacked */
+          .question-vote-btn {
+            display: block !important;
+            width: 100% !important;
+            min-height: 52px !important;
+            text-align: center !important;
+          }
+
+          /* Results bars — animate fill on vote (was already 0.6s, keep consistent) */
+          .question-tally-bar {
+            transition: width 300ms ease-out !important;
+          }
+          .question-tally { width: 100%; }
+
+          /* CHANGE 9: Sentiment strip — equal-thirds emoji row */
+          .sentiment-strip {
+            border-top: 1px solid rgba(82, 183, 136, 0.2) !important;
+            padding: 16px 16px 0 16px !important;
+            padding-bottom: env(safe-area-inset-bottom) !important;
+            margin-top: 32px;
+          }
+          .sentiment-buttons {
+            display: flex;
+            width: 100%;
+            gap: 0;
+          }
+          .sentiment-emoji-btn {
+            flex: 1;
+            min-height: 52px !important;
+            width: auto !important;
+            height: auto !important;
+            border-radius: 0;
+            border-right: 1px solid rgba(255,255,255,0.08) !important;
+          }
+          .sentiment-emoji-btn:last-child {
+            border-right: none !important;
+          }
+        }
+
+        /* Hide the visitor count text on desktop */
+        .visitor-count-text { display: none; }
+        @media (max-width: 768px) {
+          .visitor-count-text { display: block; }
+        }
+
+        /* Hide the mobile section divider on desktop */
+        .mobile-section-divider { display: none; }
       `}</style>
     </Layout>
   )

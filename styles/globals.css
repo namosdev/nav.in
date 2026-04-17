@@ -294,3 +294,20 @@ button { font-family: inherit; cursor: pointer; }
 @media (max-width: 640px) {
   .sec-h { font-size: 30px; }
 }
+
+/* ══════════════════════════════════════════════════════
+   PHASE 3B — MOBILE ENTRANCE ANIMATION + BLOB OVERRIDES
+   ══════════════════════════════════════════════════════ */
+
+/* Keyframe used for staggered hero entrance on mobile */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 768px) {
+  /* Hide blobs 3 & 4; shrink and dim the remaining two */
+  .mobile-blob-hidden { display: none; }
+  .blob.b1 { width: 286px; height: 286px; opacity: 0.30; }
+  .blob.b2 { width: 209px; height: 209px; opacity: 0.30; }
+}

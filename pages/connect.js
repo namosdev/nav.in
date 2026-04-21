@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 
 // ── Replace with your actual values ──
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'YOUR_PROJECT_URL'
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_KEY || 'YOUR_PUBLISHABLE_KEY'
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 const goodAreas = [
   {

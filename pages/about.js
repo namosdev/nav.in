@@ -1,3 +1,4 @@
+import React, { useState } from 'react'
 import Layout from '../components/Layout'
 import Link from 'next/link'
 
@@ -88,6 +89,8 @@ const career = [
 ]
 
 export default function About() {
+  /* Controls which accordion item is open on mobile (Act Two) — default 0 = first item open */
+  const [openAccordion, setOpenAccordion] = useState(0)
   return (
     <Layout title="About" description="The full story — 15,000 deliberate hours, 4 failed attempts, and the pattern I finally understood.">
       
@@ -172,6 +175,7 @@ export default function About() {
             The mission never changed: making life easier for businesses in India using technology.
           </p>
 
+          {/* Desktop view — full cards */}
           <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
             {attempts.map((a) => (
               <div key={a.num} className="glass reveal" style={{
@@ -224,6 +228,41 @@ export default function About() {
                     </div>
                   </div>
                 </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Mobile accordion — hidden on desktop via .mobile-accordion-wrapper CSS rule */}
+          <div className="mobile-accordion-wrapper">
+            {attempts.map((a, idx) => (
+              <div key={a.num} className="about-accordion-item">
+                <button
+                  className="about-accordion-header"
+                  onClick={() => setOpenAccordion(openAccordion === idx ? -1 : idx)}
+                >
+                  <div style={{ display:'flex', alignItems:'flex-start' }}>
+                    <span className="about-accordion-number">{a.num}</span>
+                    <div>
+                      <span className="about-accordion-name">{a.name}</span>
+                      <span className="about-accordion-tagline">{a.tagline}</span>
+                    </div>
+                  </div>
+                  <span className={`about-accordion-chevron${openAccordion === idx ? ' open' : ''}`}>›</span>
+                </button>
+                {openAccordion === idx && (
+                  <div className="about-accordion-content">
+                    <span className="about-accordion-sub-label">The Struggle</span>
+                    <p className="about-accordion-sub-text">{a.struggle}</p>
+                    <span className="about-accordion-sub-label">Progress Made</span>
+                    <p className="about-accordion-sub-text">{a.progress.join(' · ')}</p>
+                    <span className="about-accordion-sub-label">Highlight</span>
+                    <p className="about-accordion-sub-text">{a.highlight}</p>
+                    <div className="about-accordion-learnt">
+                      <span className="about-accordion-sub-label">What I Actually Learnt</span>
+                      <p className="about-accordion-sub-text">{a.lesson}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -303,6 +342,8 @@ export default function About() {
       </section>
 
       <style>{`
+        /* Hidden on desktop — shown via mobile media query */
+        .mobile-accordion-wrapper { display: none; }
         @media(max-width:860px){
           div[style*="grid-template-columns: repeat(2"]{grid-template-columns:1fr!important;}
           div[style*="grid-template-columns: auto 1fr"]{grid-template-columns:1fr!important;}
@@ -350,6 +391,105 @@ export default function About() {
             border-radius: 12px;
             padding: 16px;
             margin-bottom: 16px;
+          }
+          .mobile-accordion-wrapper { display: block; }
+          .about-act2-label {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #fbbf24;
+            display: block;
+            margin-bottom: 8px;
+          }
+          .about-act2-title {
+            font-family: var(--font-display);
+            font-size: 28px;
+            line-height: 1.2;
+            margin-bottom: 8px;
+          }
+          .about-act2-intro {
+            font-family: var(--font-body);
+            font-size: 14px;
+            opacity: 0.75;
+            margin-bottom: 24px;
+          }
+          .about-accordion-item {
+            border-bottom: 1px solid rgba(83,183,136,0.15);
+            margin-bottom: 0;
+          }
+          .about-accordion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 16px 0;
+            min-height: 56px;
+            cursor: pointer;
+            width: 100%;
+            background: none;
+            border: none;
+            text-align: left;
+          }
+          .about-accordion-number {
+            font-family: var(--font-display);
+            font-size: 20px;
+            color: #fbbf24;
+            margin-right: 12px;
+            flex-shrink: 0;
+          }
+          .about-accordion-name {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            display: block;
+            margin-bottom: 2px;
+          }
+          .about-accordion-tagline {
+            font-family: var(--font-body);
+            font-size: 13px;
+            opacity: 0.65;
+            display: block;
+          }
+          .about-accordion-chevron {
+            font-size: 16px;
+            color: #52b788;
+            transition: transform 300ms ease;
+            flex-shrink: 0;
+            margin-top: 4px;
+          }
+          .about-accordion-chevron.open {
+            transform: rotate(90deg);
+          }
+          .about-accordion-content {
+            overflow: hidden;
+            transition: max-height 300ms ease;
+            padding-bottom: 16px;
+          }
+          .about-accordion-sub-label {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            opacity: 0.55;
+            display: block;
+            margin-top: 12px;
+            margin-bottom: 4px;
+          }
+          .about-accordion-sub-text {
+            font-family: var(--font-body);
+            font-size: 14px;
+            opacity: 0.80;
+            line-height: 1.6;
+          }
+          .about-accordion-learnt {
+            border-left: 3px solid #b45309;
+            background: rgba(251,191,36,0.06);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+          }
+          .about-accordion-learnt .about-accordion-sub-label {
+            color: #fbbf24;
+            opacity: 1;
           }
           .about-act-label {
             font-family: var(--font-mono);

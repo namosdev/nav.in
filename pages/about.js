@@ -272,7 +272,7 @@ export default function About() {
       </section>
 
       {/* ── ACT 3 — THE PATTERN ── */}
-      <section className="section">
+      <section className="section about-act3-desktop">
         <div className="wrap">
           <p className="eyebrow reveal">Act Three</p>
           <h2 className="sec-h reveal">The Pattern, Recognised.</h2>
@@ -324,6 +324,60 @@ export default function About() {
         </div>
       </section>
 
+      {/* ── ACT 3 MOBILE — shown only on mobile via .about-act3-mobile CSS rule ── */}
+      <div className="about-act3-mobile">
+        <div className="about-act3-section">
+          <span className="about-act3-label">ACT THREE</span>
+          <div className="about-act3-title">The Pattern, Recognised.</div>
+
+          <span className="about-formula-label">THE FORMULA FOR FAILURE</span>
+
+          <span className="about-formula-pill-sage">Capability — Had it.</span>
+          <span className="about-formula-operator about-formula-operator-sage">+</span>
+          <span className="about-formula-pill-sage">Willingness — Had too much of it.</span>
+          <span className="about-formula-operator about-formula-operator-amber">−</span>
+          <span className="about-formula-pill-amber">Decisiveness — Missing.</span>
+          <span className="about-formula-operator about-formula-operator-neutral">=</span>
+
+          <div className="about-formula-result">
+            <span className="about-formula-result-main">Procrastination</span>
+            <span className="about-formula-result-equals">=</span>
+            <span className="about-formula-result-sub">Disastrous Execution.</span>
+            <span className="about-formula-result-caption">I was a victim of this for a long time.</span>
+          </div>
+
+          <span className="about-different-now-label">WHAT&apos;S DIFFERENT NOW</span>
+
+          <div className="about-different-card">
+            <strong>Execution + validation test comes first.</strong>
+            <p>Before falling in love with an idea. Maximum 3 months to prove a hypothesis.</p>
+          </div>
+          <div className="about-different-card">
+            <strong>Co-founders chosen for decisiveness.</strong>
+            <p>Not just expertise. Decisiveness is a founding skill, not a bonus.</p>
+          </div>
+          <div className="about-different-card">
+            <strong>Look for the gap between problem and solution.</strong>
+            <p>Not between idea and product. The right question before the right answer.</p>
+          </div>
+          <div className="about-different-card">
+            <strong>From imagination lock to actually building.</strong>
+            <p>Using FinOps experience and domain expertise. The builder is ready now.</p>
+          </div>
+          <div className="about-different-card">
+            <strong>Learning never stops.</strong>
+            <p>Each attempt taught something the previous one couldn&apos;t.</p>
+          </div>
+        </div>
+
+        <div className="about-closing-beat">
+          <span className="about-closing-attempt">Attempt five is live.</span>
+          <p className="about-closing-text">UNITS and UNIVEN — built with everything the first four attempts taught me. Same mission. Different builder.</p>
+          <Link href="/ventures" className="about-cta-btn-sage">See what I&apos;m building →</Link>
+          <Link href="/connect" className="about-cta-btn-amber">Let&apos;s talk</Link>
+        </div>
+      </div>
+
       {/* ── CTA ── */}
       <section className="section-sm">
         <div className="wrap">
@@ -347,6 +401,7 @@ export default function About() {
         /* Desktop defaults — overridden by mobile media query */
         .mobile-accordion-wrapper { display: none; }
         .about-act2-desktop { display: block; }
+        .about-act3-mobile { display: none; }
         @media(max-width:860px){
           div[style*="grid-template-columns: repeat(2"]{grid-template-columns:1fr!important;}
           div[style*="grid-template-columns: auto 1fr"]{grid-template-columns:1fr!important;}
@@ -583,6 +638,190 @@ export default function About() {
           @keyframes pulse {
             0%, 100% { opacity: 0.30; }
             50% { opacity: 0.70; }
+          }
+          .about-act3-mobile { display: block; }
+          .about-act3-desktop { display: none; }
+          .about-act3-section { padding: 0 20px; }
+          .about-act3-label {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #52b788;
+            display: block;
+            margin-bottom: 8px;
+          }
+          .about-act3-title {
+            font-family: var(--font-display);
+            font-size: 28px;
+            line-height: 1.2;
+            margin-bottom: 24px;
+          }
+          .about-formula-label {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #fbbf24;
+            display: block;
+            margin-bottom: 16px;
+          }
+          .about-formula-pill-sage {
+            display: block;
+            width: 100%;
+            background: rgba(45,106,79,0.20);
+            border: 1px solid #52b788;
+            border-radius: 24px;
+            padding: 12px 20px;
+            font-family: var(--font-body);
+            font-size: 14px;
+            font-weight: 600;
+            color: #52b788;
+            text-align: center;
+            box-sizing: border-box;
+          }
+          .about-formula-pill-amber {
+            display: block;
+            width: 100%;
+            background: rgba(180,83,9,0.15);
+            border: 1px solid #b45309;
+            border-radius: 24px;
+            padding: 12px 20px;
+            font-family: var(--font-body);
+            font-size: 14px;
+            font-weight: 600;
+            color: #fbbf24;
+            text-align: center;
+            box-sizing: border-box;
+          }
+          .about-formula-operator {
+            font-family: var(--font-display);
+            font-size: 28px;
+            text-align: center;
+            display: block;
+            margin: 4px auto;
+          }
+          .about-formula-operator-sage { color: #52b788; }
+          .about-formula-operator-amber { color: #fbbf24; }
+          .about-formula-operator-neutral { opacity: 0.60; }
+          .about-formula-result {
+            background: #0a0f0d;
+            border: 1px solid rgba(83,183,136,0.30);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin-top: 8px;
+          }
+          .about-formula-result-main {
+            font-family: var(--font-display);
+            font-style: italic;
+            font-size: 28px;
+            color: #fbbf24;
+            display: block;
+          }
+          .about-formula-result-equals {
+            font-family: var(--font-display);
+            font-size: 20px;
+            opacity: 0.50;
+            display: block;
+            margin: 4px 0;
+          }
+          .about-formula-result-sub {
+            font-family: var(--font-display);
+            font-style: italic;
+            font-size: 24px;
+            color: #52b788;
+            display: block;
+          }
+          .about-formula-result-caption {
+            font-family: var(--font-body);
+            font-size: 13px;
+            opacity: 0.60;
+            margin-top: 8px;
+            display: block;
+          }
+          .about-different-now-label {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #52b788;
+            display: block;
+            margin-top: 32px;
+            margin-bottom: 16px;
+          }
+          .about-different-card {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(83,183,136,0.20);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+          }
+          .about-different-card strong {
+            font-family: var(--font-body);
+            font-size: 15px;
+            font-weight: 600;
+            display: block;
+            margin-bottom: 4px;
+          }
+          .about-different-card p {
+            font-family: var(--font-body);
+            font-size: 13px;
+            opacity: 0.75;
+            margin: 0;
+            line-height: 1.5;
+          }
+          .about-closing-beat {
+            text-align: center;
+            padding: 32px 20px;
+            padding-bottom: env(safe-area-inset-bottom);
+          }
+          .about-closing-attempt {
+            font-family: var(--font-display);
+            font-style: italic;
+            font-size: 28px;
+            display: block;
+            margin-bottom: 12px;
+          }
+          .about-closing-text {
+            font-family: var(--font-body);
+            font-size: 14px;
+            opacity: 0.75;
+            max-width: 280px;
+            margin: 0 auto 24px;
+            line-height: 1.6;
+          }
+          .about-cta-btn-sage {
+            display: block;
+            width: 100%;
+            height: 52px;
+            border: 1px solid #52b788;
+            background: transparent;
+            color: #52b788;
+            font-family: var(--font-body);
+            font-size: 14px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            line-height: 52px;
+            box-sizing: border-box;
+          }
+          .about-cta-btn-amber {
+            display: block;
+            width: 100%;
+            height: 52px;
+            background: #b45309;
+            color: white;
+            font-family: var(--font-body);
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            line-height: 52px;
+            box-sizing: border-box;
           }
         }
       `}</style>

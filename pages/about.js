@@ -94,15 +94,24 @@ export default function About() {
       {/* ── PAGE HEADER ── */}
       <div className="page-header">
         <div className="wrap">
-          <p className="eyebrow reveal">The Full Story</p>
-          <h1 className="sec-h reveal" style={{ fontSize:'clamp(42px,5vw,72px)' }}>
+          <p className="eyebrow reveal about-hero-label">The Full Story</p>
+          <h1 className="sec-h reveal about-hero-headline" style={{ fontSize:'clamp(42px,5vw,72px)' }}>
             Capability, Willingness<br/>&amp; Poor Execution.
           </h1>
-          <p className="sec-p reveal" style={{ maxWidth:600 }}>
+          <p className="sec-p reveal about-hero-subtext" style={{ maxWidth:600 }}>
             This is the honest version. Not a curated highlight reel.
             The actual journey — including the four attempts nobody talks about,
             and the pattern I finally understood.
           </p>
+          {/* Mobile-only scroll chevron — hidden on desktop via inline display:none, shown via CSS class */}
+          <div style={{
+            display: 'none',
+            textAlign: 'center',
+            marginTop: '16px',
+            animation: 'fadeSlideUp 380ms ease-out 800ms both'
+          }} className="mobile-scroll-hint">
+            ↓
+          </div>
         </div>
       </div>
 
@@ -345,6 +354,17 @@ export default function About() {
           @keyframes fadeSlideUp {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
+          }
+          .mobile-scroll-hint {
+            display: block !important;
+            color: #52b788;
+            opacity: 0.50;
+            font-size: 20px;
+            animation: pulse 2s ease-in-out infinite;
+          }
+          @keyframes pulse {
+            0%, 100% { opacity: 0.30; }
+            50% { opacity: 0.70; }
           }
         }
       `}</style>

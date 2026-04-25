@@ -176,6 +176,7 @@ export default function About() {
           </p>
 
           {/* Desktop view — full cards */}
+          <div className="about-act2-desktop">
           <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
             {attempts.map((a) => (
               <div key={a.num} className="glass reveal" style={{
@@ -231,6 +232,7 @@ export default function About() {
               </div>
             ))}
           </div>
+          </div>{/* end .about-act2-desktop */}
 
           {/* Mobile accordion — hidden on desktop via .mobile-accordion-wrapper CSS rule */}
           <div className="mobile-accordion-wrapper">
@@ -342,8 +344,9 @@ export default function About() {
       </section>
 
       <style>{`
-        /* Hidden on desktop — shown via mobile media query */
+        /* Desktop defaults — overridden by mobile media query */
         .mobile-accordion-wrapper { display: none; }
+        .about-act2-desktop { display: block; }
         @media(max-width:860px){
           div[style*="grid-template-columns: repeat(2"]{grid-template-columns:1fr!important;}
           div[style*="grid-template-columns: auto 1fr"]{grid-template-columns:1fr!important;}
@@ -393,6 +396,7 @@ export default function About() {
             margin-bottom: 16px;
           }
           .mobile-accordion-wrapper { display: block; }
+          .about-act2-desktop { display: none; }
           .about-act2-label {
             font-family: var(--font-mono);
             font-size: 11px;

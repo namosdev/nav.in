@@ -1,9 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 
 // ── Supabase Keepalive Ping ──────────────────────────────────────────────────
-// This endpoint is called once daily by the Vercel cron job (see vercel.json).
-// It performs a lightweight read from the visitor_categories table to keep the
-// Supabase free-tier project alive (Supabase pauses after 7 days of inactivity).
+// Called by the Vercel cron job (see vercel.json) every 6 days at 06:00 UTC.
+// Performs a lightweight read to keep the Supabase free-tier project alive
+// (Supabase pauses after 7 days of inactivity), then writes one row to
+// keepalive_log for observability. Log failures never break the ping response.
 // No auth required — this is an internal cron-only endpoint.
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,20 @@ export default async function handler(req, res) {
     if (error) {
       console.error('[ping] Supabase error:', error.message)
       return res.status(500).json({ status: 'error', detail: error.message })
+    }
+
+    // Log this ping to keepalive_log — failure is intentionally swallowed so
+    // a log insert error never blocks the cron response
+    try {
+      const { error: logError } = await supabase
+        .from('keepalive_log')
+        .insert({ notes: 'cron_ping' })
+
+      if (logError) {
+        console.error('[ping] keepalive_log insert error:', logError.message)
+      }
+    } catch (logErr) {
+      console.error('[ping] keepalive_log unexpected error:', logErr.message)
     }
 
     // Success — database is alive

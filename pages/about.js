@@ -118,33 +118,33 @@ export default function About() {
       {/* ── ACT 1 — FOUNDATION ── */}
       <section className="section">
         <div className="wrap">
-          <p className="eyebrow reveal">Act One</p>
-          <h2 className="sec-h reveal">Patiently Compounding.</h2>
-          <p className="sec-p reveal" style={{ marginBottom:48 }}>
+          <p className="eyebrow reveal about-act-label">Act One</p>
+          <h2 className="sec-h reveal about-act-title">Patiently Compounding.</h2>
+          <p className="sec-p reveal about-act-intro" style={{ marginBottom:48 }}>
             ~15,000 deliberate hours. Not spent waiting — spent building understanding
             that only comes from showing up every single day across every single function.
           </p>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:20 }}>
             {career.map((c,i) => (
-              <div key={i} className="glass reveal" style={{
+              <div key={i} className="glass reveal about-timeline-card" style={{
                 padding:'36px 32px', position:'relative', overflow:'hidden', transition:'all 0.35s'
               }}
               onMouseEnter={e => { e.currentTarget.style.transform='translateY(-4px)'; e.currentTarget.style.boxShadow='var(--g-shadow-lg)' }}
               onMouseLeave={e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow='' }}>
                 <div style={{ position:'absolute', top:0, left:0, right:0, height:3, background:`linear-gradient(90deg,${c.color},${c.color}88)`, borderRadius:'20px 20px 0 0', opacity:0.7 }}/>
-                <div style={{ fontFamily:'JetBrains Mono, monospace', fontSize:9, letterSpacing:'0.2em', textTransform:'uppercase', color:c.color, marginBottom:8 }}>{c.period}</div>
-                <h3 style={{ fontFamily:'Cormorant Garamond, serif', fontSize:22, fontWeight:600, marginBottom:4 }}>{c.role}</h3>
-                <div style={{ fontSize:13, fontWeight:600, color:'var(--text-mid)', marginBottom:14 }}>{c.org}</div>
-                <p style={{ fontSize:13, color:'var(--text-muted)', lineHeight:1.7, marginBottom:14 }}>{c.desc}</p>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-                  {c.tags.map(t => <span key={t} className="mono-tag" style={{ background:`${c.color}15`, color:c.color }}>{t}</span>)}
+                <div className="about-timeline-date" style={{ fontFamily:'JetBrains Mono, monospace', fontSize:9, letterSpacing:'0.2em', textTransform:'uppercase', color:c.color, marginBottom:8 }}>{c.period}</div>
+                <h3 className="about-timeline-role" style={{ fontFamily:'Cormorant Garamond, serif', fontSize:22, fontWeight:600, marginBottom:4 }}>{c.role}</h3>
+                <div className="about-timeline-company" style={{ fontSize:13, fontWeight:600, color:'var(--text-mid)', marginBottom:14 }}>{c.org}</div>
+                <p className="about-timeline-desc" style={{ fontSize:13, color:'var(--text-muted)', lineHeight:1.7, marginBottom:14 }}>{c.desc}</p>
+                <div className="about-chips-row" style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                  {c.tags.map(t => <span key={t} className="mono-tag about-chip" style={{ background:`${c.color}15`, color:c.color }}>{t}</span>)}
                 </div>
               </div>
             ))}
           </div>
 
           {/* The key insight */}
-          <div className="glass reveal" style={{
+          <div className="glass reveal about-pull-quote" style={{
             marginTop:40, padding:'40px 48px', textAlign:'center',
             background:'linear-gradient(135deg,rgba(45,106,79,0.05),rgba(180,83,9,0.04))',
             border:'1px solid rgba(45,106,79,0.12)'
@@ -350,6 +350,80 @@ export default function About() {
             border-radius: 12px;
             padding: 16px;
             margin-bottom: 16px;
+          }
+          .about-act-label {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #fbbf24;
+            margin-bottom: 8px;
+            display: block;
+          }
+          .about-act-title {
+            font-family: var(--font-display);
+            font-size: 28px;
+            line-height: 1.2;
+            margin-bottom: 8px;
+          }
+          .about-act-intro {
+            font-family: var(--font-body);
+            font-size: 14px;
+            opacity: 0.75;
+            margin-bottom: 24px;
+          }
+          .about-timeline-date {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            opacity: 0.55;
+            display: block;
+            margin-bottom: 4px;
+          }
+          .about-timeline-role {
+            font-family: var(--font-body);
+            font-size: 16px;
+            font-weight: 600;
+            display: block;
+          }
+          .about-timeline-company {
+            font-family: var(--font-body);
+            font-size: 14px;
+            opacity: 0.80;
+            display: block;
+            margin-bottom: 8px;
+          }
+          .about-timeline-desc {
+            font-family: var(--font-body);
+            font-size: 14px;
+            opacity: 0.80;
+            line-height: 1.6;
+            margin-bottom: 12px;
+          }
+          .about-chips-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+          }
+          .about-chip {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            border: 1px solid #52b788;
+            border-radius: 20px;
+            padding: 4px 10px;
+            opacity: 0.80;
+          }
+          .about-pull-quote {
+            border-left: 4px solid #52b788;
+            padding: 16px 16px 16px 20px;
+            max-width: 300px;
+            margin: 32px auto;
+          }
+          .about-pull-quote p {
+            font-family: var(--font-display);
+            font-style: italic;
+            font-size: 20px;
+            line-height: 1.5;
+            margin: 0;
           }
           @keyframes fadeSlideUp {
             from { opacity: 0; transform: translateY(20px); }

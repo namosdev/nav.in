@@ -299,6 +299,54 @@ export default function About() {
           div[style*="grid-template-columns: auto 1fr"]{grid-template-columns:1fr!important;}
           div[style*="grid-template-columns: repeat(3"]{grid-template-columns:1fr!important;}
         }
+        @media (max-width: 768px) {
+          .about-hero-label {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: #52b788;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            text-align: center;
+            animation: fadeSlideUp 380ms ease-out both;
+            animation-delay: 0ms;
+          }
+          .about-hero-headline {
+            font-family: var(--font-display);
+            font-size: clamp(34px, 9vw, 44px);
+            text-align: center;
+            line-height: 1.15;
+            animation: fadeSlideUp 380ms ease-out both;
+            animation-delay: 80ms;
+          }
+          .about-hero-subtext {
+            font-family: var(--font-body);
+            font-size: 14px;
+            opacity: 0.70;
+            text-align: center;
+            max-width: 280px;
+            margin: 0 auto;
+            animation: fadeSlideUp 380ms ease-out both;
+            animation-delay: 160ms;
+          }
+          .about-section-label {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+          }
+          .about-timeline-card {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(83,183,136,0.20);
+            border-left: 3px solid #52b788;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+          }
+          @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        }
       `}</style>
     </Layout>
   )

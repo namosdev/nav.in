@@ -145,7 +145,7 @@ export default function Stack({ stackItems }) {
                       fontWeight: 600,
                       marginBottom: 6,
                     }}>
-                      {item.name}
+                      {item.tool_name}
                     </h3>
 
                     {/* Status badge — sage for "Active", amber for everything else */}
@@ -310,7 +310,7 @@ export async function getServerSideProps() {
     // then enforces the CATEGORY_ORDER sequence for rendering.
     const { data, error } = await supabase
       .from('stack_items')
-      .select('category, name, description, status')
+      .select('category, tool_name, description, status')
       .order('category', { ascending: true })
 
     // If Supabase returned an error, log it and pass null to the page

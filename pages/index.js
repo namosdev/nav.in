@@ -3,13 +3,6 @@ import Layout from '../components/Layout'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/router'
-import { createClient } from '@supabase/supabase-js'
-
-// ── AI agent User-Agent patterns to detect and log ──
-const BOT_PATTERNS = [
-  'GPTBot', 'ClaudeBot', 'Google-Extended', 'CCBot',
-  'PerplexityBot', 'Diffbot', 'anthropic-ai', 'cohere-ai', 'YouBot',
-]
 
 // ── Visitor category definitions — slug must match DB, label shown in UI ──
 const CATEGORIES = [
@@ -19,40 +12,6 @@ const CATEGORIES = [
   { slug: 'fellow-maker',      label: 'Fellow Maker' },
   { slug: 'just-curious',      label: 'Just Curious' },
 ]
-
-// ── getServerSideProps — runs on the server for every page request ──
-// Detects AI agent crawlers and silently logs them to agent_visits.
-// Never blocks the request — always serves the page regardless of DB result.
-export async function getServerSideProps({ req }) {
-  const ua = req.headers['user-agent'] || ''
-
-  // Check if the User-Agent matches any known AI bot pattern (case-insensitive)
-  const matchedBot = BOT_PATTERNS.find(pattern =>
-    ua.toLowerCase().includes(pattern.toLowerCase())
-  )
-
-  if (matchedBot) {
-    try {
-      // Create a fresh Supabase client server-side (env vars available here)
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      )
-
-      // Log the agent visit — store the clean pattern name, not the raw UA
-      await supabase.from('agent_visits').insert({
-        agent_name:    matchedBot,
-        user_agent_raw: ua,
-        page_path:     '/',
-      })
-    } catch (e) {
-      // Silently fail — the page always loads regardless of DB errors
-    }
-  }
-
-  // Always return props (page content is not personalised)
-  return { props: {} }
-}
 
 export default function Home() {
   const router = useRouter()

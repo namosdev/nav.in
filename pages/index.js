@@ -3,6 +3,14 @@ import Layout from '../components/Layout'
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/router'
+import dynamic from 'next/dynamic'
+
+// ssr: false is required — WebGL only runs in the browser, not on the server.
+// Without this Next.js would crash during server-side rendering.
+const WaterRipple = dynamic(
+  () => import('../components/WaterRipple'),
+  { ssr: false }
+)
 
 // ── Visitor category definitions — slug must match DB, label shown in UI ──
 const CATEGORIES = [
@@ -267,6 +275,12 @@ export default function Home() {
   }
 
   return (
+    <>
+    {/* Fixed canvas background — renders the water ripple effect behind all page content.
+        Placed as a sibling before <Layout> so it sits in the document stacking order
+        at z-index 1 (between the bg-layer blobs at 0 and page-content at 2) without
+        trapping the Layout in a fixed container, which would break page scrolling. */}
+    <WaterRipple className="ripple-full-page" />
     <Layout>
       {/* ── Hidden AI-readable note — for crawlers and language models ── */}
       {/* Placed as the first child of <main> (via Layout's page-content wrapper) */}
@@ -1640,5 +1654,6 @@ export default function Home() {
         .mobile-section-divider { display: none; }
       `}</style>
     </Layout>
+    </>
   )
 }

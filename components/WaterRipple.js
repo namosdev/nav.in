@@ -339,8 +339,11 @@ export default function WaterRipple({ children, className = '' }) {
     let nextBrushIndex = 0; // round-robin cursor into the pool
 
     // ── 9. Pointer Tracking ───────────────────────────────────────────────────
-    // We listen on the wrapper div rather than the canvas so the full visible
-    // area is reactive. The event is converted to clip-space before spawning.
+    // We listen on document so the effect responds to mouse movement anywhere
+    // on the page — including areas covered by nav, footer, or page content
+    // that sit in front of this canvas in the stacking order.
+    // Coordinates are converted to clip-space using the wrapper's bounding rect,
+    // which equals the full viewport when ripple-full-page is applied.
 
     let lastSpawnX = -9999; // previous spawn position (px) — used to throttle
     let lastSpawnY = -9999;
@@ -382,8 +385,7 @@ export default function WaterRipple({ children, className = '' }) {
       spawnBrush(clipX, clipY);
     }
 
-    const wrapperEl = wrapperRef.current;
-    wrapperEl.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointermove', onPointerMove);
 
     // ── 10. Resize Handling ───────────────────────────────────────────────────
     // When the container changes size, the renderer and FBO must update so
@@ -466,7 +468,7 @@ export default function WaterRipple({ children, className = '' }) {
     return () => {
       cancelAnimationFrame(rafId);            // stop the animation loop
       resizeObserver.disconnect();            // stop watching size changes
-      wrapperEl.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointermove', onPointerMove);
 
       // Release the WebGL framebuffer. gl.deleteFramebuffer is the standard
       // WebGL API for freeing GPU-side buffer memory.

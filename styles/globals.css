@@ -44,6 +44,21 @@ a { color: inherit; text-decoration: none; }
 img { max-width: 100%; display: block; }
 button { font-family: inherit; cursor: pointer; }
 
+/* ── WATER RIPPLE CANVAS — full-page fixed background (desktop only) ──
+   Sits at z-index 1: above the gradient blobs (bg-layer, z-index 0) but
+   below all page content (page-content, z-index 2). The ripple's sage/amber
+   gradient shows subtly through the glass cards' 30% transparency.
+   On screens below 768px the WaterRipple component skips WebGL entirely,
+   so this class has no visual effect on mobile. */
+.ripple-full-page {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  z-index: 1;          /* between bg-layer (0) and page-content (2) */
+  pointer-events: none; /* never block clicks or hover on page elements */
+}
+
 /* ── ANIMATED BG ── */
 .bg-layer {
   position: fixed;

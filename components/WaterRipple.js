@@ -15,6 +15,13 @@
  */
 
 import { useEffect, useRef } from 'react';
+// ogl is an ESM-only package — must use ES6 import, not require().
+// This file is always loaded via dynamic({ ssr: false }) so the server
+// bundle never processes these imports; only the client chunk sees them.
+import {
+  Renderer, Camera, Transform, Mesh, Triangle,
+  Program, Texture, RenderTarget, Geometry,
+} from 'ogl';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // These values are hardcoded and not exposed as props to keep the component
@@ -179,20 +186,6 @@ export default function WaterRipple({ children, className = '' }) {
     // The canvas element might not be in the DOM yet if the component re-mounts.
     if (!canvasRef.current) return;
 
-    // ── OGL Imports ───────────────────────────────────────────────────────────
-    // We import OGL dynamically inside the effect so it is never loaded on
-    // mobile (server-side rendering would also never reach this branch).
-    const {
-      Renderer,
-      Camera,
-      Transform,
-      Mesh,
-      Triangle,
-      Program,
-      Texture,
-      RenderTarget,
-    } = require('ogl');
-
     // ── 1. Renderer ───────────────────────────────────────────────────────────
     // The Renderer wraps the WebGL context and handles drawing calls.
     // alpha: true lets the page background show through any transparent areas.
@@ -285,7 +278,6 @@ export default function WaterRipple({ children, className = '' }) {
     // Helper: build a flat quad geometry from scratch using OGL's low-level API.
     // The quad spans from -0.1 to 0.1 in both x and y (size 0.2 in clip space).
     function makePlaneGeometry() {
-      const { Geometry } = require('ogl');
       return new Geometry(gl, {
         position: {
           size: 3,

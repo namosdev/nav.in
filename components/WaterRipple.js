@@ -196,14 +196,14 @@ export default function WaterRipple({ children, className = '' }) {
     // ── 1. Renderer ───────────────────────────────────────────────────────────
     // The Renderer wraps the WebGL context and handles drawing calls.
     // alpha: true lets the page background show through any transparent areas.
+    // dpr is passed in the constructor — OGL has no setPixelRatio() method.
     const canvas = canvasRef.current;
     const parent = canvas.parentElement; // the .ripple-carrier div
 
-    const renderer = new Renderer({ canvas, alpha: true });
-    const gl = renderer.gl;
-
     // Respect high-DPI screens (retina), capped at 2× to avoid GPU overload
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const renderer = new Renderer({ canvas, alpha: true, dpr });
+    const gl = renderer.gl;
 
     // Size the renderer to fill its container
     const initialWidth  = parent.clientWidth;

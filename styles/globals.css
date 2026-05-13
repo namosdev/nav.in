@@ -44,19 +44,24 @@ a { color: inherit; text-decoration: none; }
 img { max-width: 100%; display: block; }
 button { font-family: inherit; cursor: pointer; }
 
-/* ── WATER RIPPLE CANVAS — full-page fixed background (desktop only) ──
-   Sits at z-index 1: above the gradient blobs (bg-layer, z-index 0) but
-   below all page content (page-content, z-index 2). The ripple's sage/amber
-   gradient shows subtly through the glass cards' 30% transparency.
-   On screens below 768px the WaterRipple component skips WebGL entirely,
-   so this class has no visual effect on mobile. */
+/* ── WATER RIPPLE CANVAS — full-page fixed overlay (desktop only) ──
+   z-index 150 places the canvas above all page content (z-index 2)
+   and the nav (z-index 100), so the effect is always visible.
+   opacity 0.13 keeps it as a subtle tint — the sage/amber gradient
+   becomes a soft wash; mouse movement distorts it visibly as water
+   ripple waves without obscuring any text or UI.
+   pointer-events: none means all clicks and hovers pass straight
+   through to the page as if the canvas weren't there.
+   On screens below 768px the WaterRipple component skips WebGL
+   entirely, so this class has no visual effect on mobile. */
 .ripple-full-page {
   position: fixed;
   inset: 0;
   width: 100%;
   height: 100vh;
-  z-index: 1;          /* between bg-layer (0) and page-content (2) */
-  pointer-events: none; /* never block clicks or hover on page elements */
+  z-index: 150;         /* above nav (100) and page-content (2) */
+  pointer-events: none; /* clicks/hovers pass through to page content */
+  opacity: 0.13;        /* subtle tint — distortion visible, text unaffected */
 }
 
 /* ── ANIMATED BG ── */

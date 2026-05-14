@@ -27,10 +27,9 @@ import {
 // These values are hardcoded and not exposed as props to keep the component
 // simple. Change them here if you ever want to tweak the feel of the effect.
 
-const BRUSH_COUNT = 5;           // How many ripple stamps exist in the pool
-const INTENSITY = 0.18;          // How strongly the ripple distorts the image
-const DECAY = 0.96;              // How fast each ripple fades (0.96 = fades gently)
-const MOVEMENT_THRESHOLD = 4;    // Minimum px of mouse movement before a new ripple spawns
+const BRUSH_COUNT = 7;           // Ring stamps active at once — more = richer ripple trail
+const DECAY = 0.955;             // How fast each ring fades (higher = longer-lasting)
+const MOVEMENT_THRESHOLD = 3;    // Minimum px of mouse movement before a new ring spawns
 const MOBILE_BREAKPOINT = 768;   // Screens below this width skip WebGL entirely
 
 // ─── Shaders ─────────────────────────────────────────────────────────────────
@@ -50,43 +49,57 @@ const VERTEX_SHADER = /* glsl */ `
   }
 `;
 
-// Display fragment shader — reads the displacement map and produces the ripple.
+// Display fragment shader — turns the displacement map into visible water rings.
 //
-// KEY DESIGN: the canvas is FULLY TRANSPARENT where no ripple is active.
-// The page background shows through normally; the sage/amber colour only
-// appears at the cursor trail as it fades. This preserves the site's colour
-// scheme everywhere outside the cursor's path.
+// APPROACH: instead of drawing a colour blob, we compute the spatial gradient
+// (rate-of-change) of the displacement map. Where displacement changes steeply
+// — i.e. at the inner and outer edges of each ring stamp — we light up with a
+// soft sage shimmer. This creates thin, expanding luminous rings that look like
+// light refracting on water, not a dark cloud following the cursor.
+//
+// The canvas stays FULLY TRANSPARENT where no ring edge is present, so the
+// page background is never tinted or obscured.
 const DISPLAY_FRAG = /* glsl */ `
   precision highp float;
-  uniform sampler2D uTexture;      /* the sage/amber colour gradient */
-  uniform sampler2D uDisplacement; /* the ripple map built from brush stamps */
-  uniform float     uIntensity;    /* how much to shift the UV coordinates */
+  uniform sampler2D uDisplacement; /* the displacement map from brush stamps */
+  uniform vec2      uResolution;   /* FBO dimensions — needed for pixel-step size */
   varying vec2 vUv;
-  const float PI = 3.1415926535897932384626433832795;
-  void main() {
-    /* Read ripple strength from the red channel of the displacement map */
-    float strength = texture2D(uDisplacement, vUv).r;
 
-    /* Where there is no active ripple, output fully transparent so the page
-       shows through. Threshold of 0.005 avoids a hard cutoff edge. */
-    if (strength < 0.005) {
+  void main() {
+    /* One-pixel step in UV space, based on the FBO resolution */
+    vec2 px = 1.0 / uResolution;
+
+    /* Sample displacement at this pixel and its four neighbours.
+       Using a 2-pixel step gives softer, more organic-looking ring edges. */
+    float centre = texture2D(uDisplacement, vUv).r;
+    float dx = texture2D(uDisplacement, vUv + vec2(px.x * 2.0, 0.0)).r
+             - texture2D(uDisplacement, vUv - vec2(px.x * 2.0, 0.0)).r;
+    float dy = texture2D(uDisplacement, vUv + vec2(0.0, px.y * 2.0)).r
+             - texture2D(uDisplacement, vUv - vec2(0.0, px.y * 2.0)).r;
+
+    /* Edge strength = magnitude of the displacement gradient.
+       High where the ring boundary is — exactly the ring edges we want to see. */
+    float edge = clamp(sqrt(dx * dx + dy * dy) * 6.0, 0.0, 1.0);
+
+    /* Faint base fill inside the ring body so it's not just hairlines */
+    float fill = centre * 0.28;
+
+    float strength = clamp(edge + fill, 0.0, 1.0);
+
+    /* Fully transparent outside any active ring — page shows through normally */
+    if (strength < 0.01) {
       gl_FragColor = vec4(0.0);
       return;
     }
 
-    /* Convert strength to an angle and derive a UV offset direction.
-       This creates a swirling distortion pattern around each cursor position. */
-    float theta  = strength * 2.0 * PI;
-    vec2  dir    = vec2(sin(theta), cos(theta));
-    vec2  uv     = clamp(vUv + dir * strength * uIntensity, 0.0, 1.0);
+    /* Ring edges are near-white (like a light caustic); ring body is sage-light.
+       mix() blends between the two based on how much is edge vs fill. */
+    vec3 ringEdge = vec3(0.88, 0.97, 0.92);   /* near-white with sage tint */
+    vec3 ringBody = vec3(0.32, 0.72, 0.53);   /* #52b788 sage-light */
+    float edgeFrac = edge / (strength + 0.001);
+    vec3  colour   = mix(ringBody, ringEdge, edgeFrac);
 
-    /* Sample the sage/amber gradient at the distorted UV */
-    vec4 color = texture2D(uTexture, uv);
-
-    /* Alpha ramps up quickly then levels off — ripple punches in,
-       then fades out as strength decays toward 0. */
-    float alpha = min(strength * 2.5, 0.72);
-    gl_FragColor = vec4(color.rgb, alpha);
+    gl_FragColor = vec4(colour, strength * 0.68);
   }
 `;
 
@@ -104,8 +117,9 @@ const BRUSH_VERT = /* glsl */ `
   }
 `;
 
-// Brush fragment shader — paints a soft white circle onto the ripple map.
-// White areas create distortion; black areas have none.
+// Brush fragment shader — paints the ring-shaped stamp onto the displacement map.
+// White ring areas get picked up by the display shader's edge detection; the
+// transparent centre means there is no blob at the cursor's current position.
 const BRUSH_FRAG = /* glsl */ `
   precision highp float;
   uniform sampler2D uBrush;   /* the soft white circle texture */
@@ -123,45 +137,16 @@ const BRUSH_FRAG = /* glsl */ `
 // to produce textures. No external image files are needed.
 
 /**
- * buildGradientCanvas()
- * Creates a 256×256 canvas with the site's sage/amber colour palette,
- * radiating outward from a bright centre to near-black at the edge.
- * This becomes the colour layer that the ripple effect warps.
- */
-function buildGradientCanvas() {
-  const size = 256;
-  const c = document.createElement('canvas');
-  c.width = c.height = size;
-  const ctx = c.getContext('2d');
-  const cx = size / 2;
-  const cy = size / 2;
-
-  // Primary sage gradient — centre bright, edges dark
-  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, size / 2);
-  grad.addColorStop(0.00, '#2d6a4f');   // sage at centre
-  grad.addColorStop(0.25, '#52b788');   // lighter sage
-  grad.addColorStop(0.80, '#1a3d2e');   // deep sage-dark
-  grad.addColorStop(1.00, '#080e0b');   // near-black at edge
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, size, size);
-
-  // Amber accent layer — very faint (8% opacity), only at the midpoint ring.
-  // This adds warmth without overpowering the sage palette.
-  const amberGrad = ctx.createRadialGradient(cx, cy, size * 0.35, cx, cy, size * 0.55);
-  amberGrad.addColorStop(0.0, 'rgba(180,83,9,0)');      // transparent inside ring
-  amberGrad.addColorStop(0.5, 'rgba(180,83,9,0.08)');   // subtle amber at 55% radius
-  amberGrad.addColorStop(1.0, 'rgba(180,83,9,0)');      // transparent outside ring
-  ctx.fillStyle = amberGrad;
-  ctx.fillRect(0, 0, size, size);
-
-  return c;
-}
-
-/**
  * buildBrushCanvas()
- * Creates a 256×256 canvas with a soft white circle on a black background.
- * This is the "stamp" shape for each ripple. White = distortion, black = none.
- * The Gaussian-style falloff gives the ripple a smooth, organic edge.
+ * Creates a 256×256 ring-shaped brush texture.
+ *
+ * The ring shape (transparent centre → bright band → transparent outside) means
+ * each stamp paints an annulus into the displacement map. As the stamp scales
+ * up over its lifetime, the ring expands outward — exactly like a water ripple.
+ *
+ * The edge-detection display shader then finds the ring's inner and outer
+ * boundaries and lights them up as thin luminous lines. Result: concentric
+ * expanding rings, not a blob.
  */
 function buildBrushCanvas() {
   const size = 256;
@@ -169,18 +154,21 @@ function buildBrushCanvas() {
   c.width = c.height = size;
   const ctx = c.getContext('2d');
 
-  // Black background — areas of black contribute zero distortion
-  ctx.fillStyle = '#000000';
-  ctx.fillRect(0, 0, size, size);
+  // Transparent background — areas outside the ring contribute zero displacement
+  ctx.clearRect(0, 0, size, size);
 
-  // Soft white circle — solid white centre fading smoothly to black at ~100px radius
   const cx = size / 2;
   const cy = size / 2;
-  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 100);
-  grad.addColorStop(0.0,  'rgba(255,255,255,1)');   // fully white at centre
-  grad.addColorStop(0.4,  'rgba(255,255,255,0.8)'); // still quite white
-  grad.addColorStop(0.75, 'rgba(255,255,255,0.2)'); // fading
-  grad.addColorStop(1.0,  'rgba(255,255,255,0)');   // fully transparent at edge
+
+  // Ring: transparent at centre, peaks at ~50% radius, fades back to transparent.
+  // The slight fill inside (stop at 0.35) gives the ring body just enough
+  // displacement for the base-fill pass in the display shader.
+  const grad = ctx.createRadialGradient(cx, cy, size * 0.10, cx, cy, size * 0.50);
+  grad.addColorStop(0.00, 'rgba(255,255,255,0)');    // transparent centre
+  grad.addColorStop(0.35, 'rgba(255,255,255,0.12)'); // faint fill inside ring
+  grad.addColorStop(0.60, 'rgba(255,255,255,1)');    // bright at ring peak
+  grad.addColorStop(0.80, 'rgba(255,255,255,0.35)'); // soft outer shoulder
+  grad.addColorStop(1.00, 'rgba(255,255,255,0)');    // transparent outside
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
 
@@ -240,66 +228,54 @@ export default function WaterRipple({ children, className = '' }) {
     const displayCamera = new Camera(gl, { left: -1, right: 1, top: 1, bottom: -1 });
     displayCamera.position.z = 1;
 
-    // ── 3. Background Texture ─────────────────────────────────────────────────
-    // This is the colour layer that the ripple effect warps. Built from the
-    // programmatic sage/amber gradient canvas (no external image files).
-    const gradientCanvas  = buildGradientCanvas();
-    const backgroundTexture = new Texture(gl, {
-      image: gradientCanvas,
-      generateMipmaps: false, // mipmaps not needed for a full-screen effect
-    });
-
-    // ── 4. Framebuffer (Displacement Buffer / FBO) ────────────────────────────
-    // A Framebuffer Object (FBO) is an off-screen render target — the GPU
-    // draws into it instead of the screen. We render the ripple stamps here
-    // to build an invisible "ripple map". The display shader then reads from
-    // this map to know where and how much to distort the colour texture.
-    // Using UNSIGNED_BYTE keeps memory usage low for this effect.
+    // ── 3. Framebuffer (Displacement Buffer / FBO) ────────────────────────────
+    // An off-screen render target where ring-shaped brush stamps are painted
+    // each frame. The display shader reads from this to find ring boundaries
+    // via edge detection and draws thin luminous rings at those locations.
     let fbo = new RenderTarget(gl, {
       width:  initialWidth,
       height: initialHeight,
       type:   gl.UNSIGNED_BYTE,
     });
 
-    // ── 5. Brush Texture ──────────────────────────────────────────────────────
-    // The soft white circle that gets stamped onto the FBO at each mouse
-    // position. White pixels create distortion; the gradient falloff makes
-    // each ripple feel organic.
+    // ── 4. Brush Texture ──────────────────────────────────────────────────────
+    // Ring-shaped stamp: transparent centre, bright annulus, transparent outside.
+    // Each stamp expands as it ages, so the ring moves outward like a water ripple.
     const brushCanvas  = buildBrushCanvas();
     const brushTexture = new Texture(gl, {
       image: brushCanvas,
       generateMipmaps: false,
     });
 
-    // ── 6. Scenes ─────────────────────────────────────────────────────────────
-    // OGL uses Transform nodes as scene containers. We keep two separate
-    // scenes so the brush stamps and the display quad never mix.
-    const brushScene   = new Transform(); // holds the 5 ripple stamp meshes
+    // ── 5. Scenes ─────────────────────────────────────────────────────────────
+    const brushScene   = new Transform(); // holds the ring stamp meshes
     const displayScene = new Transform(); // holds the single full-screen quad
 
-    // ── 7. Display Mesh ───────────────────────────────────────────────────────
-    // A Triangle is OGL's built-in full-screen geometry — one large triangle
-    // that covers the entire viewport. The fragment shader does all the work.
+    // ── 6. Display Mesh ───────────────────────────────────────────────────────
+    // Full-screen triangle; the display shader reads the FBO and highlights
+    // ring edges with a light sage shimmer. No background texture needed.
     const displayGeo = new Triangle(gl);
     const displayProgram = new Program(gl, {
       vertex:   VERTEX_SHADER,
       fragment: DISPLAY_FRAG,
       uniforms: {
-        uTexture:     { value: backgroundTexture },
-        uDisplacement:{ value: fbo.texture },       // reads from the FBO each frame
-        uIntensity:   { value: INTENSITY },
+        uDisplacement: { value: fbo.texture },
+        // uResolution tells the edge-detection shader how big one pixel is
+        uResolution:   { value: [initialWidth, initialHeight] },
       },
+      transparent: true,
+      depthTest:   false,
+      depthWrite:  false,
     });
     const displayMesh = new Mesh(gl, { geometry: displayGeo, program: displayProgram });
     displayMesh.setParent(displayScene);
 
-    // ── 8. Brush Pool ─────────────────────────────────────────────────────────
-    // Instead of creating a new mesh for every mouse movement, we keep a
-    // small fixed pool of 5 meshes and reuse them round-robin. This avoids
-    // allocating GPU memory on every pointer event.
+    // ── 7. Brush Pool ─────────────────────────────────────────────────────────
+    // A fixed pool of ring-stamp meshes, reused round-robin so no GPU memory
+    // is allocated on every pointer event.
     //
-    // Each brush is a tiny flat quad (0.2 × 0.2 in clip space). Its position
-    // moves to wherever the mouse is; its opacity decays each frame.
+    // Each stamp is a flat quad (0.2 × 0.2 clip space). Position jumps to the
+    // cursor; scale grows each frame so the ring expands; opacity decays to 0.
 
     // Helper: build a flat quad geometry from scratch using OGL's low-level API.
     // The quad spans from -0.1 to 0.1 in both x and y (size 0.2 in clip space).
@@ -422,8 +398,9 @@ export default function WaterRipple({ children, className = '' }) {
           type: gl.UNSIGNED_BYTE,
         });
 
-        // Point the display shader at the new FBO texture
+        // Point the display shader at the new FBO texture and updated resolution
         displayProgram.uniforms.uDisplacement.value = fbo.texture;
+        displayProgram.uniforms.uResolution.value   = [width, height];
       }
     });
     resizeObserver.observe(parent);

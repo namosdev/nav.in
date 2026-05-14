@@ -187,21 +187,28 @@ export default function WaterRipple({ children, className = '' }) {
     if (!canvasRef.current) return;
 
     // ── 1. Renderer ───────────────────────────────────────────────────────────
-    // The Renderer wraps the WebGL context and handles drawing calls.
-    // alpha: true lets the page background show through any transparent areas.
-    // dpr is passed in the constructor — OGL has no setPixelRatio() method.
     const canvas = canvasRef.current;
     const parent = canvas.parentElement; // the .ripple-carrier div
 
-    // Respect high-DPI screens (retina), capped at 2× to avoid GPU overload
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const renderer = new Renderer({ canvas, alpha: true, dpr });
-    const gl = renderer.gl;
+    // Wrap everything in try/catch — WebGL can fail silently on some
+    // browsers/GPUs. Any error here gets logged to the console so it's
+    // easy to spot in DevTools without breaking the rest of the page.
+    let renderer, gl;
+    try {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      renderer = new Renderer({ canvas, alpha: true, dpr });
+      gl = renderer.gl;
+    } catch (err) {
+      console.error('[WaterRipple] WebGL context creation failed:', err);
+      return;
+    }
 
-    // Size the renderer to fill its container
-    const initialWidth  = parent.clientWidth;
-    const initialHeight = parent.clientHeight;
+    // Use parent dimensions with a fallback to window size in case the
+    // fixed/absolute element hasn't been laid out yet at mount time.
+    const initialWidth  = parent.clientWidth  || window.innerWidth;
+    const initialHeight = parent.clientHeight || window.innerHeight;
     renderer.setSize(initialWidth, initialHeight);
+    console.log('[WaterRipple] canvas size:', initialWidth, 'x', initialHeight);
 
     // ── 2. Cameras ────────────────────────────────────────────────────────────
     // Orthographic cameras map clip-space coordinates (-1 to 1) directly to
@@ -484,11 +491,16 @@ export default function WaterRipple({ children, className = '' }) {
     <>
       {/* Scoped inline styles — no external CSS file needed */}
       <style>{`
+        /*
+         * IMPORTANT: .ripple-wrapper intentionally has NO position declaration.
+         * When used with .ripple-full-page (see globals.css), the fixed positioning
+         * on that class must win. A scoped "position: relative" here would override
+         * "position: fixed" from globals.css because this <style> tag is injected
+         * after the linked stylesheet, making the cascade order flip.
+         */
         .ripple-wrapper {
-          position: relative;
           width: 100%;
           height: 100%;
-          overflow: hidden;
         }
         .ripple-carrier {
           position: absolute;
@@ -497,8 +509,6 @@ export default function WaterRipple({ children, className = '' }) {
           pointer-events: none; /* mouse events pass through to the content layer */
         }
         .ripple-canvas {
-          position: absolute;
-          inset: 0;
           width: 100%;
           height: 100%;
           display: block;

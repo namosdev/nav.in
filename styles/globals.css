@@ -61,7 +61,7 @@ button { font-family: inherit; cursor: pointer; }
   height: 100vh;
   z-index: 150;         /* above nav (100) and page-content (2) */
   pointer-events: none; /* clicks/hovers pass through to page content */
-  opacity: 0.13;        /* subtle tint — distortion visible, text unaffected */
+  opacity: 0.35;        /* visible tint — distortion noticeable without obscuring text */
 }
 
 /* ── ANIMATED BG ── */

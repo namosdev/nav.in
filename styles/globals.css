@@ -61,7 +61,9 @@ button { font-family: inherit; cursor: pointer; }
   height: 100vh;
   z-index: 150;         /* above nav (100) and page-content (2) */
   pointer-events: none; /* clicks/hovers pass through to page content */
-  opacity: 0.35;        /* visible tint — distortion noticeable without obscuring text */
+  /* No opacity here — the WebGL shader controls per-pixel alpha.
+     Canvas is transparent where no ripple is active; sage/amber colour
+     only appears at the cursor trail as it fades out. */
 }
 
 /* ── ANIMATED BG ── */

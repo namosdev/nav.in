@@ -1,534 +1,376 @@
 /**
  * WaterRipple.js
  *
- * A self-contained WebGL water ripple cursor effect.
- * When the user moves their mouse, soft ripples appear in the background
- * — like light refracting through shallow water. The effect warps a colour
- * gradient (not a photo). The canvas sits behind all page content.
+ * A self-contained WebGL water-ripple cursor effect.
  *
- * Desktop only. On screens narrower than 768px the component renders
- * children with no canvas at all — no WebGL, no overhead.
+ * How it works:
+ *   1. A wave-equation simulation runs on the CPU each frame. When the mouse
+ *      moves, we disturb a small patch of a 256×256 height grid — like dropping
+ *      a pebble. The discrete wave equation then propagates that disturbance
+ *      outward as concentric rings, exactly like real water physics.
+ *
+ *   2. The height grid is uploaded to the GPU as a texture each frame.
+ *
+ *   3. A fragment shader computes the surface normal at each pixel from the
+ *      height gradient, then calculates how a virtual light source reflects off
+ *      that surface. The output is bright caustic sparkles where wave crests
+ *      would catch the light — the characteristic shimmer of sunlight on water.
+ *
+ *   4. The canvas is FULLY TRANSPARENT everywhere except those caustic
+ *      highlights. The page background, colours, and text are never obscured.
+ *      The effect looks like glass water sitting over the page.
+ *
+ * Desktop only. On screens narrower than 768 px the component renders nothing —
+ * no WebGL, no overhead.
  *
  * Props:
- *   children  — page content, rendered above the canvas
- *   className — optional extra class for the outer wrapper
+ *   className — optional extra class for the outer wrapper (use "ripple-full-page")
  */
 
 import { useEffect, useRef } from 'react';
-// ogl is an ESM-only package — must use ES6 import, not require().
+// ogl is ESM-only — must use ES6 import, not require().
 // This file is always loaded via dynamic({ ssr: false }) so the server
 // bundle never processes these imports; only the client chunk sees them.
-import {
-  Renderer, Camera, Transform, Mesh, Triangle,
-  Program, Texture, RenderTarget, Geometry,
-} from 'ogl';
+import { Renderer, Camera, Transform, Mesh, Triangle, Program, Texture } from 'ogl';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-// These values are hardcoded and not exposed as props to keep the component
-// simple. Change them here if you ever want to tweak the feel of the effect.
 
-const BRUSH_COUNT = 7;           // Ring stamps active at once — more = richer ripple trail
-const DECAY = 0.955;             // How fast each ring fades (higher = longer-lasting)
-const MOVEMENT_THRESHOLD = 3;    // Minimum px of mouse movement before a new ring spawns
-const MOBILE_BREAKPOINT = 768;   // Screens below this width skip WebGL entirely
+const SIM_W   = 256;   // wave grid width (cells) — higher = sharper rings, more CPU
+const SIM_H   = 256;   // wave grid height (cells)
+const DAMPING = 0.986; // energy loss per frame — 1.0 = lossless, ~0.98 = 2–3 s lifetime
+const SPAWN_R = 5;     // radius (cells) of the disturbance when the cursor moves
+const MOVE_THRESHOLD = 5; // minimum cursor movement in px before spawning a new ripple
+const MOBILE_BREAKPOINT = 768;
 
 // ─── Shaders ─────────────────────────────────────────────────────────────────
-// Shaders are tiny programs that run on the GPU. There are two pairs here:
-// one pair for the final colour display, and one pair for painting the
-// invisible "ripple map" that drives the distortion.
 
-// Shared vertex shader — positions a full-screen triangle so the fragment
-// shader can paint every pixel. Both display and brush use a version of this.
-const VERTEX_SHADER = /* glsl */ `
-  attribute vec2 uv;
+// Full-screen vertex shader — OGL's Triangle geometry already provides
+// clip-space positions, so we pass them through unchanged.
+const VERT = /* glsl */ `
   attribute vec2 position;
+  attribute vec2 uv;
   varying vec2 vUv;
   void main() {
-    vUv = uv;
+    vUv         = uv;
     gl_Position = vec4(position, 0.0, 1.0);
   }
 `;
 
-// Display fragment shader — turns the displacement map into visible water rings.
+// Display fragment shader — creates the glass-water look.
 //
-// APPROACH: instead of drawing a colour blob, we compute the spatial gradient
-// (rate-of-change) of the displacement map. Where displacement changes steeply
-// — i.e. at the inner and outer edges of each ring stamp — we light up with a
-// soft sage shimmer. This creates thin, expanding luminous rings that look like
-// light refracting on water, not a dark cloud following the cursor.
+// For each pixel it:
+//   1. Reads the wave height at this pixel and its 4 neighbours
+//   2. Computes the surface normal from the height gradient
+//      (steep slope → normal tilted away from vertical)
+//   3. Reflects a virtual light off that normal (Blinn-Phong specular)
+//   4. Outputs the specular highlight on a TRANSPARENT background
 //
-// The canvas stays FULLY TRANSPARENT where no ring edge is present, so the
-// page background is never tinted or obscured.
-const DISPLAY_FRAG = /* glsl */ `
+// The result: fully invisible when water is flat; bright caustic sparkles
+// where wave crests catch the light. No colour blob, no dark overlay.
+const FRAG = /* glsl */ `
   precision highp float;
-  uniform sampler2D uDisplacement; /* the displacement map from brush stamps */
-  uniform vec2      uResolution;   /* FBO dimensions — needed for pixel-step size */
+
+  uniform sampler2D uHeight;  /* wave height map — R channel, 0=trough, 0.5=flat, 1=crest */
+  uniform vec2      uSimSize; /* (SIM_W, SIM_H) — used to step one cell in UV space */
+
   varying vec2 vUv;
 
   void main() {
-    /* One-pixel step in UV space, based on the FBO resolution */
-    vec2 px = 1.0 / uResolution;
+    /* UV step = one simulation cell */
+    vec2 px = 1.0 / uSimSize;
 
-    /* Sample displacement at this pixel and its four neighbours.
-       Using a 2-pixel step gives softer, more organic-looking ring edges. */
-    float centre = texture2D(uDisplacement, vUv).r;
-    float dx = texture2D(uDisplacement, vUv + vec2(px.x * 2.0, 0.0)).r
-             - texture2D(uDisplacement, vUv - vec2(px.x * 2.0, 0.0)).r;
-    float dy = texture2D(uDisplacement, vUv + vec2(0.0, px.y * 2.0)).r
-             - texture2D(uDisplacement, vUv - vec2(0.0, px.y * 2.0)).r;
+    /* Sample height at this pixel and its neighbours.
+       Decode from texture [0,1] → wave height [-1, +1]. */
+    float hL = texture2D(uHeight, vUv - vec2(px.x, 0.0)).r * 2.0 - 1.0;
+    float hR = texture2D(uHeight, vUv + vec2(px.x, 0.0)).r * 2.0 - 1.0;
+    float hD = texture2D(uHeight, vUv - vec2(0.0, px.y)).r * 2.0 - 1.0;
+    float hU = texture2D(uHeight, vUv + vec2(0.0, px.y)).r * 2.0 - 1.0;
+    float hC = texture2D(uHeight, vUv).r * 2.0 - 1.0;
 
-    /* Edge strength = magnitude of the displacement gradient.
-       High where the ring boundary is — exactly the ring edges we want to see. */
-    float edge = clamp(sqrt(dx * dx + dy * dy) * 6.0, 0.0, 1.0);
+    /* Surface normal via central-difference gradient.
+       The Z component (0.10) controls how pronounced the highlights are:
+       smaller = more intense caustics; larger = flatter, calmer look. */
+    vec3 normal = normalize(vec3((hL - hR) * 0.5, (hD - hU) * 0.5, 0.10));
 
-    /* Faint base fill inside the ring body so it's not just hairlines */
-    float fill = centre * 0.28;
+    /* Virtual light — angled slightly upper-left, mostly coming from above */
+    vec3 lightDir = normalize(vec3(-0.15, 0.30, 0.94));
+    vec3 viewDir  = vec3(0.0, 0.0, 1.0);
+    vec3 halfVec  = normalize(lightDir + viewDir);
 
-    float strength = clamp(edge + fill, 0.0, 1.0);
+    /* Blinn-Phong specular — tight bright spots at wave crests */
+    float spec = pow(max(dot(normal, halfVec), 0.0), 56.0);
 
-    /* Fully transparent outside any active ring — page shows through normally */
-    if (strength < 0.01) {
+    /* Soft diffuse glow across the wider wave body */
+    float diff = max(dot(normal, lightDir), 0.0) * 0.15;
+
+    /* Height contribution — very faint glow at wave crests even without spec */
+    float height = abs(hC) * 0.05;
+
+    /* Combine — specular dominates so the effect stays mostly transparent */
+    float caustic = clamp(spec * 0.92 + diff + height, 0.0, 1.0);
+
+    /* Anything below threshold stays fully transparent — no tint on the page */
+    if (caustic < 0.015) {
       gl_FragColor = vec4(0.0);
       return;
     }
 
-    /* Ring edges are near-white (like a light caustic); ring body is sage-light.
-       mix() blends between the two based on how much is edge vs fill. */
-    vec3 ringEdge = vec3(0.88, 0.97, 0.92);   /* near-white with sage tint */
-    vec3 ringBody = vec3(0.32, 0.72, 0.53);   /* #52b788 sage-light */
-    float edgeFrac = edge / (strength + 0.001);
-    vec3  colour   = mix(ringBody, ringEdge, edgeFrac);
+    /* Colour: specular peaks are near-white (caustic light flash);
+       softer glow is sage-light to match the site palette without
+       adding darkness anywhere. */
+    vec3 causticWhite = vec3(0.92, 0.99, 0.96);  /* near-white, slight sage tint */
+    vec3 sageLight    = vec3(0.32, 0.72, 0.53);  /* #52b788 */
+    float specFrac    = spec / (caustic + 0.001); /* 0=glow only, 1=specular peak */
+    vec3  colour      = mix(sageLight, causticWhite, specFrac);
 
-    gl_FragColor = vec4(colour, strength * 0.68);
+    gl_FragColor = vec4(colour, caustic * 0.80);
   }
 `;
 
-// Brush vertex shader — positions each ripple stamp in the scene.
-// It respects the camera matrices so stamps can be moved in clip space.
-const BRUSH_VERT = /* glsl */ `
-  attribute vec3 position;
-  attribute vec2 uv;
-  uniform mat4 modelViewMatrix;
-  uniform mat4 projectionMatrix;
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+// ─── Wave Simulation ──────────────────────────────────────────────────────────
+//
+// The discrete wave equation:
+//   next[x,y] = (left + right + up + down) / 2  −  prev[x,y]
+//
+// Multiplied by DAMPING to slowly bleed energy so rings fade out.
+// Two float buffers alternate: one holds the current frame, the other the
+// previous frame. After each step we swap which is which.
+//
+// This is the same algorithm used in countless water ripple demos — it's
+// fast, stable, and produces realistic expanding ring propagation.
+
+function makeSimulation() {
+  const n      = SIM_W * SIM_H;
+  const bufA   = new Float32Array(n);  // "current" frame heights
+  const bufB   = new Float32Array(n);  // "previous" frame heights
+  let   curr   = bufA;                 // pointer to the current buffer
+  let   prev   = bufB;                 // pointer to the previous buffer
+
+  // Advance the simulation by one time step
+  function step() {
+    // We write new values into `prev`, reading neighbours from `curr`.
+    // After the loop, swap so the newly-written buffer becomes "current".
+    const c = curr; // read source
+    const p = prev; // write destination (reusing old-prev memory)
+
+    for (let y = 1; y < SIM_H - 1; y++) {
+      for (let x = 1; x < SIM_W - 1; x++) {
+        const i = y * SIM_W + x;
+        // Wave equation — p[i] holds old-prev value, c[i±…] holds current
+        p[i] = ((c[i - 1] + c[i + 1] + c[i - SIM_W] + c[i + SIM_W]) / 2 - p[i]) * DAMPING;
+      }
+    }
+
+    // Swap: the buffer we just wrote into is now the new "current"
+    prev = curr;
+    curr = p;
   }
-`;
 
-// Brush fragment shader — paints the ring-shaped stamp onto the displacement map.
-// White ring areas get picked up by the display shader's edge detection; the
-// transparent centre means there is no blob at the cursor's current position.
-const BRUSH_FRAG = /* glsl */ `
-  precision highp float;
-  uniform sampler2D uBrush;   /* the soft white circle texture */
-  uniform float     uOpacity; /* fades to 0 as the ripple ages */
-  varying vec2 vUv;
-  void main() {
-    vec4 tex = texture2D(uBrush, vUv);
-    float val = tex.r * uOpacity;
-    gl_FragColor = vec4(val, val, val, val);
+  // Disturb the water surface at a normalised position (0–1, 0–1).
+  // normX=0 = left edge, normX=1 = right edge.
+  // normY=0 = top of viewport, normY=1 = bottom (browser coordinates).
+  function spawn(normX, normY) {
+    // Map to simulation grid — flip Y because the texture bottom = UV y=0
+    const cx = Math.round(normX * (SIM_W - 1));
+    const cy = Math.round((1 - normY) * (SIM_H - 1));
+
+    for (let dy = -SPAWN_R; dy <= SPAWN_R; dy++) {
+      for (let dx = -SPAWN_R; dx <= SPAWN_R; dx++) {
+        if (dx * dx + dy * dy > SPAWN_R * SPAWN_R) continue; // stay within circle
+        const ix = cx + dx;
+        const iy = cy + dy;
+        if (ix < 0 || ix >= SIM_W || iy < 0 || iy >= SIM_H) continue;
+        curr[iy * SIM_W + ix] = 0.75; // disturb this cell
+      }
+    }
   }
-`;
 
-// ─── Texture Generators ───────────────────────────────────────────────────────
-// These run in the browser at mount time, drawing onto hidden <canvas> elements
-// to produce textures. No external image files are needed.
+  // Encode the current float height buffer into RGBA bytes for GPU upload.
+  // Height −1→+1 maps to R channel 0→255; G/B/A are unused padding.
+  const rgba = new Uint8Array(n * 4);
+  function encode() {
+    for (let i = 0; i < n; i++) {
+      const v = Math.max(0, Math.min(255, Math.round((curr[i] * 0.5 + 0.5) * 255)));
+      rgba[i * 4]     = v;   // R: height value
+      rgba[i * 4 + 1] = 0;   // G: unused
+      rgba[i * 4 + 2] = 0;   // B: unused
+      rgba[i * 4 + 3] = 255; // A: fully opaque (texture alpha — not canvas alpha)
+    }
+    return rgba;
+  }
 
-/**
- * buildBrushCanvas()
- * Creates a 256×256 ring-shaped brush texture.
- *
- * The ring shape (transparent centre → bright band → transparent outside) means
- * each stamp paints an annulus into the displacement map. As the stamp scales
- * up over its lifetime, the ring expands outward — exactly like a water ripple.
- *
- * The edge-detection display shader then finds the ring's inner and outer
- * boundaries and lights them up as thin luminous lines. Result: concentric
- * expanding rings, not a blob.
- */
-function buildBrushCanvas() {
-  const size = 256;
-  const c = document.createElement('canvas');
-  c.width = c.height = size;
-  const ctx = c.getContext('2d');
-
-  // Transparent background — areas outside the ring contribute zero displacement
-  ctx.clearRect(0, 0, size, size);
-
-  const cx = size / 2;
-  const cy = size / 2;
-
-  // Ring: transparent at centre, peaks at ~50% radius, fades back to transparent.
-  // The slight fill inside (stop at 0.35) gives the ring body just enough
-  // displacement for the base-fill pass in the display shader.
-  const grad = ctx.createRadialGradient(cx, cy, size * 0.10, cx, cy, size * 0.50);
-  grad.addColorStop(0.00, 'rgba(255,255,255,0)');    // transparent centre
-  grad.addColorStop(0.35, 'rgba(255,255,255,0.12)'); // faint fill inside ring
-  grad.addColorStop(0.60, 'rgba(255,255,255,1)');    // bright at ring peak
-  grad.addColorStop(0.80, 'rgba(255,255,255,0.35)'); // soft outer shoulder
-  grad.addColorStop(1.00, 'rgba(255,255,255,0)');    // transparent outside
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, size, size);
-
-  return c;
+  return { step, spawn, encode };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function WaterRipple({ children, className = '' }) {
-  const canvasRef = useRef(null);    // reference to the <canvas> element
-  const wrapperRef = useRef(null);   // reference to the outer wrapper div
+export default function WaterRipple({ className = '' }) {
+  const canvasRef  = useRef(null);
+  const wrapperRef = useRef(null);
 
   useEffect(() => {
-    // ── Mobile guard ──────────────────────────────────────────────────────────
-    // If the screen is narrower than 768px we skip all WebGL work entirely.
-    // No canvas is initialised, no GPU memory is allocated. Children render
-    // as normal — just without the ripple effect behind them.
+    // Skip WebGL entirely on mobile — no visual loss, no CPU overhead
     if (window.innerWidth < MOBILE_BREAKPOINT) return;
-
-    // The canvas element might not be in the DOM yet if the component re-mounts.
     if (!canvasRef.current) return;
 
-    // ── 1. Renderer ───────────────────────────────────────────────────────────
     const canvas = canvasRef.current;
-    const parent = canvas.parentElement; // the .ripple-carrier div
+    const parent = canvas.parentElement; // .ripple-carrier div
 
-    // Wrap everything in try/catch — WebGL can fail silently on some
-    // browsers/GPUs. Any error here gets logged to the console so it's
-    // easy to spot in DevTools without breaking the rest of the page.
+    // ── 1. WebGL Renderer ─────────────────────────────────────────────────────
+    // premultipliedAlpha: false ensures correct browser compositing when the
+    // shader outputs transparent pixels (alpha < 1) alongside opaque ones.
     let renderer, gl;
     try {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      // premultipliedAlpha: false so the browser composites alpha correctly
-      // when the display shader outputs non-premultiplied rgba values.
       renderer = new Renderer({ canvas, alpha: true, premultipliedAlpha: false, dpr });
       gl = renderer.gl;
     } catch (err) {
-      console.error('[WaterRipple] WebGL context creation failed:', err);
+      console.error('[WaterRipple] WebGL init failed:', err);
       return;
     }
 
-    // Use parent dimensions with a fallback to window size in case the
-    // fixed/absolute element hasn't been laid out yet at mount time.
-    const initialWidth  = parent.clientWidth  || window.innerWidth;
-    const initialHeight = parent.clientHeight || window.innerHeight;
-    renderer.setSize(initialWidth, initialHeight);
-    console.log('[WaterRipple] canvas size:', initialWidth, 'x', initialHeight);
+    const initW = parent.clientWidth  || window.innerWidth;
+    const initH = parent.clientHeight || window.innerHeight;
+    renderer.setSize(initW, initH);
 
-    // ── 2. Cameras ────────────────────────────────────────────────────────────
-    // Orthographic cameras map clip-space coordinates (-1 to 1) directly to
-    // the screen — no perspective foreshortening. We use two:
-    //   brushCamera  — used when rendering ripple stamps into the FBO
-    //   displayCamera — used when rendering the final visible scene
-    const brushCamera = new Camera(gl, { left: -1, right: 1, top: 1, bottom: -1 });
-    brushCamera.position.z = 1;
+    // ── 2. Orthographic Camera ────────────────────────────────────────────────
+    // Required by OGL's render call. The display shader doesn't use camera
+    // matrices (it positions using clip-space coords directly), but we still
+    // need to pass a camera object to renderer.render().
+    const camera = new Camera(gl, { left: -1, right: 1, top: 1, bottom: -1 });
+    camera.position.z = 1;
 
-    const displayCamera = new Camera(gl, { left: -1, right: 1, top: 1, bottom: -1 });
-    displayCamera.position.z = 1;
+    // ── 3. Wave Simulation ────────────────────────────────────────────────────
+    const sim = makeSimulation();
 
-    // ── 3. Framebuffer (Displacement Buffer / FBO) ────────────────────────────
-    // An off-screen render target where ring-shaped brush stamps are painted
-    // each frame. The display shader reads from this to find ring boundaries
-    // via edge detection and draws thin luminous rings at those locations.
-    let fbo = new RenderTarget(gl, {
-      width:  initialWidth,
-      height: initialHeight,
-      type:   gl.UNSIGNED_BYTE,
-    });
-
-    // ── 4. Brush Texture ──────────────────────────────────────────────────────
-    // Ring-shaped stamp: transparent centre, bright annulus, transparent outside.
-    // Each stamp expands as it ages, so the ring moves outward like a water ripple.
-    const brushCanvas  = buildBrushCanvas();
-    const brushTexture = new Texture(gl, {
-      image: brushCanvas,
+    // ── 4. Height Map Texture ─────────────────────────────────────────────────
+    // Uploaded to the GPU on every frame with the latest wave heights.
+    // OGL Texture wraps the raw WebGL texture and re-uploads when
+    // needsUpdate is set to true.
+    const heightTexture = new Texture(gl, {
+      image:           sim.encode(), // initial upload — all flat (0.5 = neutral)
+      width:           SIM_W,
+      height:          SIM_H,
       generateMipmaps: false,
+      minFilter:       gl.LINEAR,   // bilinear filtering for smooth wave gradients
+      magFilter:       gl.LINEAR,
+      wrapS:           gl.CLAMP_TO_EDGE,
+      wrapT:           gl.CLAMP_TO_EDGE,
     });
 
-    // ── 5. Scenes ─────────────────────────────────────────────────────────────
-    const brushScene   = new Transform(); // holds the ring stamp meshes
-    const displayScene = new Transform(); // holds the single full-screen quad
-
-    // ── 6. Display Mesh ───────────────────────────────────────────────────────
-    // Full-screen triangle; the display shader reads the FBO and highlights
-    // ring edges with a light sage shimmer. No background texture needed.
-    const displayGeo = new Triangle(gl);
-    const displayProgram = new Program(gl, {
-      vertex:   VERTEX_SHADER,
-      fragment: DISPLAY_FRAG,
+    // ── 5. Full-Screen Display Mesh ───────────────────────────────────────────
+    // OGL's Triangle is a single large triangle that covers the entire viewport.
+    // The fragment shader runs on every pixel and decides what to draw.
+    const scene   = new Transform();
+    const geo     = new Triangle(gl);
+    const program = new Program(gl, {
+      vertex:   VERT,
+      fragment: FRAG,
       uniforms: {
-        uDisplacement: { value: fbo.texture },
-        // uResolution tells the edge-detection shader how big one pixel is
-        uResolution:   { value: [initialWidth, initialHeight] },
+        uHeight:  { value: heightTexture },
+        uSimSize: { value: [SIM_W, SIM_H] },
       },
-      transparent: true,
-      depthTest:   false,
+      transparent: true,  // enables alpha blending so transparent pixels show through
+      depthTest:   false, // 2-D effect — no depth needed
       depthWrite:  false,
     });
-    const displayMesh = new Mesh(gl, { geometry: displayGeo, program: displayProgram });
-    displayMesh.setParent(displayScene);
+    const mesh = new Mesh(gl, { geometry: geo, program });
+    mesh.setParent(scene);
 
-    // ── 7. Brush Pool ─────────────────────────────────────────────────────────
-    // A fixed pool of ring-stamp meshes, reused round-robin so no GPU memory
-    // is allocated on every pointer event.
-    //
-    // Each stamp is a flat quad (0.2 × 0.2 clip space). Position jumps to the
-    // cursor; scale grows each frame so the ring expands; opacity decays to 0.
-
-    // Helper: build a flat quad geometry from scratch using OGL's low-level API.
-    // The quad spans from -0.1 to 0.1 in both x and y (size 0.2 in clip space).
-    function makePlaneGeometry() {
-      return new Geometry(gl, {
-        position: {
-          size: 3,
-          data: new Float32Array([
-            -0.1, -0.1, 0,   // bottom-left
-             0.1, -0.1, 0,   // bottom-right
-            -0.1,  0.1, 0,   // top-left
-             0.1,  0.1, 0,   // top-right
-          ]),
-        },
-        uv: {
-          size: 2,
-          data: new Float32Array([
-            0, 0,   // bottom-left UV
-            1, 0,   // bottom-right UV
-            0, 1,   // top-left UV
-            1, 1,   // top-right UV
-          ]),
-        },
-        index: {
-          data: new Uint16Array([0, 1, 2, 1, 3, 2]), // two triangles making a quad
-        },
-      });
-    }
-
-    // Build the pool: each entry holds the mesh plus its mutable scale state
-    const brushPool = Array.from({ length: BRUSH_COUNT }, () => {
-      const program = new Program(gl, {
-        vertex:   BRUSH_VERT,
-        fragment: BRUSH_FRAG,
-        uniforms: {
-          uBrush:   { value: brushTexture },
-          uOpacity: { value: 0 },          // starts invisible
-        },
-        transparent: true,                 // allow additive blending in FBO
-        depthTest:   false,                // no depth needed for 2-D stamps
-        depthWrite:  false,
-      });
-      const mesh = new Mesh(gl, { geometry: makePlaneGeometry(), program });
-      mesh.setParent(brushScene);
-      mesh.visible = false; // hidden until a ripple is spawned
-
-      return {
-        mesh,
-        scaleX: 1.5, // tracks the eased scale independently per axis
-        scaleY: 1.5,
-        get opacityUniform() { return program.uniforms.uOpacity; },
-      };
-    });
-
-    let nextBrushIndex = 0; // round-robin cursor into the pool
-
-    // ── 9. Pointer Tracking ───────────────────────────────────────────────────
-    // We listen on document so the effect responds to mouse movement anywhere
-    // on the page — including areas covered by nav, footer, or page content
-    // that sit in front of this canvas in the stacking order.
-    // Coordinates are converted to clip-space using the wrapper's bounding rect,
-    // which equals the full viewport when ripple-full-page is applied.
-
-    let lastSpawnX = -9999; // previous spawn position (px) — used to throttle
-    let lastSpawnY = -9999;
-
-    function spawnBrush(clipX, clipY) {
-      // Grab the next entry from the pool, wrapping around at BRUSH_COUNT
-      const entry = brushPool[nextBrushIndex % BRUSH_COUNT];
-      nextBrushIndex++;
-
-      // Move the mesh to the mouse position (clip space: -1 to 1)
-      entry.mesh.position.x = clipX;
-      entry.mesh.position.y = clipY;
-      entry.mesh.visible    = true;
-
-      // Reset opacity and scale so the ripple "punches in"
-      entry.opacityUniform.value = 1;
-      entry.scaleX = 1.5;
-      entry.scaleY = 1.5;
-      entry.mesh.scale.set(1.5, 1.5, 1);
-    }
+    // ── 6. Pointer Tracking ───────────────────────────────────────────────────
+    // Listen on document so the effect responds to cursor movement anywhere
+    // on the page, even over content that sits in front of this canvas.
+    let lastX = -9999, lastY = -9999;
 
     function onPointerMove(e) {
-      // Find the bounding box of the wrapper div to convert to local coords
+      // Only spawn a ripple if the cursor moved enough — avoids micro-jitter
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      if (dx * dx + dy * dy < MOVE_THRESHOLD * MOVE_THRESHOLD) return;
+      lastX = e.clientX;
+      lastY = e.clientY;
+
       const rect = wrapperRef.current?.getBoundingClientRect();
       if (!rect) return;
 
-      // Distance from last spawn — only spawn if the mouse moved enough
-      const dx = e.clientX - lastSpawnX;
-      const dy = e.clientY - lastSpawnY;
-      if (Math.sqrt(dx * dx + dy * dy) < MOVEMENT_THRESHOLD) return;
-
-      lastSpawnX = e.clientX;
-      lastSpawnY = e.clientY;
-
-      // Convert screen pixel position to clip-space (-1 to +1)
-      const clipX =  ((e.clientX - rect.left)  / rect.width)  * 2 - 1;
-      const clipY = -((e.clientY - rect.top)   / rect.height) * 2 + 1; // Y flipped
-
-      spawnBrush(clipX, clipY);
+      // Convert viewport pixel position to normalised 0–1 coordinates
+      const normX = (e.clientX - rect.left) / rect.width;
+      const normY = (e.clientY - rect.top)  / rect.height;
+      sim.spawn(normX, normY);
     }
 
     document.addEventListener('pointermove', onPointerMove);
 
-    // ── 10. Resize Handling ───────────────────────────────────────────────────
-    // When the container changes size, the renderer and FBO must update so
-    // the effect doesn't appear stretched or cropped.
-    const resizeObserver = new ResizeObserver((entries) => {
+    // ── 7. Resize Handling ────────────────────────────────────────────────────
+    // Keeps the renderer in sync if the browser window is resized.
+    // The simulation grid stays at SIM_W × SIM_H regardless of screen size —
+    // the shader scales it via the texture sampler.
+    const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        if (width === 0 || height === 0) continue;
-
-        renderer.setSize(width, height);
-
-        // Replace the FBO — WebGL FBOs cannot be resized in-place
-        fbo = new RenderTarget(gl, {
-          width,
-          height,
-          type: gl.UNSIGNED_BYTE,
-        });
-
-        // Point the display shader at the new FBO texture and updated resolution
-        displayProgram.uniforms.uDisplacement.value = fbo.texture;
-        displayProgram.uniforms.uResolution.value   = [width, height];
+        if (width > 0 && height > 0) renderer.setSize(width, height);
       }
     });
-    resizeObserver.observe(parent);
+    ro.observe(parent);
 
-    // ── 11. Animation Loop ────────────────────────────────────────────────────
-    // This runs 60 times per second (or at the monitor's refresh rate).
-    // Each frame: update all active brushes, render stamps into FBO, then
-    // render the distorted colour layer to the screen.
-
-    let rafId; // stores the animation frame handle so we can cancel on cleanup
-
+    // ── 8. Animation Loop ─────────────────────────────────────────────────────
+    // Each frame:
+    //   a) advance the wave physics one step
+    //   b) encode the new heights into RGBA bytes and push to the GPU
+    //   c) render the fullscreen shader, which draws caustic highlights
+    let rafId;
     function animate() {
       rafId = requestAnimationFrame(animate);
 
-      // --- Update each brush in the pool ---
-      for (const entry of brushPool) {
-        if (!entry.mesh.visible) continue; // skip inactive stamps
+      sim.step();                          // propagate waves one frame
+      heightTexture.image = sim.encode(); // encode heights → RGBA bytes
+      heightTexture.needsUpdate = true;   // tell OGL to re-upload to GPU
 
-        // Slowly rotate the stamp for a more organic, swirling look
-        entry.mesh.rotation.z += 0.02;
-
-        // Decay opacity toward zero — once nearly invisible, hide the mesh
-        entry.opacityUniform.value *= DECAY;
-        if (entry.opacityUniform.value < 0.002) {
-          entry.mesh.visible = false;
-          continue;
-        }
-
-        // Ease the scale upward smoothly (exponential approach toward ~6×)
-        // This makes each ripple expand outward as it fades
-        entry.scaleX = 0.982 * entry.scaleX + 0.108;
-        entry.scaleY = 0.982 * entry.scaleY + 0.108;
-        entry.mesh.scale.set(entry.scaleX, entry.scaleY, 1);
-      }
-
-      // --- Pass 1: clear the FBO and re-render all active brush stamps ---
-      // clear: true wipes the FBO each frame, then re-draws every visible stamp
-      // at its current (decaying) opacity. This is how the fade-out actually
-      // works — each frame renders a dimmer version until stamps vanish.
-      // (clear: false would accumulate old values and never let ripples fade.)
-      renderer.render({
-        scene:  brushScene,
-        camera: brushCamera,
-        target: fbo,
-        clear:  true,
-      });
-
-      // --- Pass 2: render the distorted colour layer to the screen ---
-      // The display shader reads from fbo.texture (updated in Pass 1) and
-      // shifts the colour gradient to create the ripple illusion.
-      renderer.render({
-        scene:  displayScene,
-        camera: displayCamera,
-      });
+      renderer.render({ scene, camera });
     }
+    animate();
 
-    animate(); // kick off the loop
-
-    // ── 12. Cleanup ───────────────────────────────────────────────────────────
-    // When the component unmounts (e.g. navigating to another page), we free
-    // all GPU and browser resources to prevent memory leaks.
+    // ── 9. Cleanup ────────────────────────────────────────────────────────────
+    // Called when the component unmounts (e.g. navigating away).
+    // Frees animation frame, observer, and GPU resources.
     return () => {
-      cancelAnimationFrame(rafId);            // stop the animation loop
-      resizeObserver.disconnect();            // stop watching size changes
+      cancelAnimationFrame(rafId);
+      ro.disconnect();
       document.removeEventListener('pointermove', onPointerMove);
-
-      // Release the WebGL framebuffer. gl.deleteFramebuffer is the standard
-      // WebGL API for freeing GPU-side buffer memory.
-      if (fbo && fbo.buffer) {
-        try { gl.deleteFramebuffer(fbo.buffer); } catch (_) { /* ignore */ }
-      }
-
-      // Setting canvas size to 0 signals the browser to free GPU memory
       canvas.width  = 0;
       canvas.height = 0;
     };
-  }, []); // empty deps — runs once on mount, cleans up on unmount
-
-  // ── Render ────────────────────────────────────────────────────────────────
-  // The structure keeps the canvas behind all page content:
-  //   ripple-wrapper  — positioned container (fills its parent)
-  //   ripple-carrier  — absolute layer at z-index 0, holds the canvas
-  //   ripple-content  — absolute layer at z-index 1, holds children
+  }, []); // runs once on mount, cleans up on unmount
 
   return (
     <>
-      {/* Scoped inline styles — no external CSS file needed */}
+      {/*
+        * IMPORTANT: .ripple-wrapper has NO position declaration here.
+        * The external .ripple-full-page class (globals.css) sets position: fixed.
+        * A scoped "position: relative" injected after the linked stylesheet would
+        * override it and collapse the canvas to zero height — the root cause of
+        * the previous invisible-canvas bug.
+        */}
       <style>{`
-        /*
-         * IMPORTANT: .ripple-wrapper intentionally has NO position declaration.
-         * When used with .ripple-full-page (see globals.css), the fixed positioning
-         * on that class must win. A scoped "position: relative" here would override
-         * "position: fixed" from globals.css because this <style> tag is injected
-         * after the linked stylesheet, making the cascade order flip.
-         */
-        .ripple-wrapper {
-          width: 100%;
-          height: 100%;
-        }
+        .ripple-wrapper { width: 100%; height: 100%; }
         .ripple-carrier {
           position: absolute;
           inset: 0;
-          z-index: 0;
-          pointer-events: none; /* mouse events pass through to the content layer */
+          pointer-events: none;
         }
         .ripple-canvas {
           width: 100%;
           height: 100%;
           display: block;
         }
-        .ripple-content {
-          position: relative;
-          z-index: 1;
-          width: 100%;
-          height: 100%;
-        }
       `}</style>
 
       <div ref={wrapperRef} className={`ripple-wrapper${className ? ' ' + className : ''}`}>
-        {/* Canvas layer — WebGL draws here; hidden on mobile via the useEffect guard */}
+        {/* Canvas layer — WebGL draws caustic highlights here */}
         <div className="ripple-carrier">
           <canvas ref={canvasRef} className="ripple-canvas" />
         </div>
-
-        {/* Content layer — page content sits on top of the ripple canvas */}
-        <div className="ripple-content">
-          {children}
-        </div>
+        {/* No content layer needed — WaterRipple no longer wraps children */}
       </div>
     </>
   );

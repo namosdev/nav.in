@@ -28,7 +28,7 @@ import {
 // simple. Change them here if you ever want to tweak the feel of the effect.
 
 const BRUSH_COUNT = 5;           // How many ripple stamps exist in the pool
-const INTENSITY = 0.05;          // How strongly the ripple distorts the image
+const INTENSITY = 0.18;          // How strongly the ripple distorts the image
 const DECAY = 0.96;              // How fast each ripple fades (0.96 = fades gently)
 const MOVEMENT_THRESHOLD = 4;    // Minimum px of mouse movement before a new ripple spawns
 const MOBILE_BREAKPOINT = 768;   // Screens below this width skip WebGL entirely
@@ -50,26 +50,43 @@ const VERTEX_SHADER = /* glsl */ `
   }
 `;
 
-// Display fragment shader — reads the displacement map and shifts UV
-// coordinates so the colour texture appears to ripple.
+// Display fragment shader — reads the displacement map and produces the ripple.
+//
+// KEY DESIGN: the canvas is FULLY TRANSPARENT where no ripple is active.
+// The page background shows through normally; the sage/amber colour only
+// appears at the cursor trail as it fades. This preserves the site's colour
+// scheme everywhere outside the cursor's path.
 const DISPLAY_FRAG = /* glsl */ `
   precision highp float;
-  uniform sampler2D uTexture;      /* the colour gradient background */
-  uniform sampler2D uDisplacement; /* the invisible ripple map */
-  uniform float     uIntensity;    /* how much to shift each pixel */
+  uniform sampler2D uTexture;      /* the sage/amber colour gradient */
+  uniform sampler2D uDisplacement; /* the ripple map built from brush stamps */
+  uniform float     uIntensity;    /* how much to shift the UV coordinates */
   varying vec2 vUv;
   const float PI = 3.1415926535897932384626433832795;
   void main() {
-    /* Read the red channel from the ripple map — it encodes ripple direction */
-    vec4 displacement = texture2D(uDisplacement, vUv);
-    /* Convert 0-1 value to an angle in radians */
-    float theta = displacement.r * 2.0 * PI;
-    /* Derive a 2-D shift direction from that angle */
-    vec2 dir = vec2(sin(theta), cos(theta));
-    /* Offset the UV, then clamp so we never sample outside the texture */
-    vec2 finalUv = vUv + dir * displacement.r * uIntensity;
-    finalUv = clamp(finalUv, 0.0, 1.0);
-    gl_FragColor = texture2D(uTexture, finalUv);
+    /* Read ripple strength from the red channel of the displacement map */
+    float strength = texture2D(uDisplacement, vUv).r;
+
+    /* Where there is no active ripple, output fully transparent so the page
+       shows through. Threshold of 0.005 avoids a hard cutoff edge. */
+    if (strength < 0.005) {
+      gl_FragColor = vec4(0.0);
+      return;
+    }
+
+    /* Convert strength to an angle and derive a UV offset direction.
+       This creates a swirling distortion pattern around each cursor position. */
+    float theta  = strength * 2.0 * PI;
+    vec2  dir    = vec2(sin(theta), cos(theta));
+    vec2  uv     = clamp(vUv + dir * strength * uIntensity, 0.0, 1.0);
+
+    /* Sample the sage/amber gradient at the distorted UV */
+    vec4 color = texture2D(uTexture, uv);
+
+    /* Alpha ramps up quickly then levels off — ripple punches in,
+       then fades out as strength decays toward 0. */
+    float alpha = min(strength * 2.5, 0.72);
+    gl_FragColor = vec4(color.rgb, alpha);
   }
 `;
 
@@ -196,7 +213,9 @@ export default function WaterRipple({ children, className = '' }) {
     let renderer, gl;
     try {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      renderer = new Renderer({ canvas, alpha: true, dpr });
+      // premultipliedAlpha: false so the browser composites alpha correctly
+      // when the display shader outputs non-premultiplied rgba values.
+      renderer = new Renderer({ canvas, alpha: true, premultipliedAlpha: false, dpr });
       gl = renderer.gl;
     } catch (err) {
       console.error('[WaterRipple] WebGL context creation failed:', err);
@@ -440,14 +459,16 @@ export default function WaterRipple({ children, className = '' }) {
         entry.mesh.scale.set(entry.scaleX, entry.scaleY, 1);
       }
 
-      // --- Pass 1: render brush stamps into the off-screen FBO ---
-      // clear: false means stamps accumulate — old ripples persist until they
-      // fade on their own, rather than being wiped each frame.
+      // --- Pass 1: clear the FBO and re-render all active brush stamps ---
+      // clear: true wipes the FBO each frame, then re-draws every visible stamp
+      // at its current (decaying) opacity. This is how the fade-out actually
+      // works — each frame renders a dimmer version until stamps vanish.
+      // (clear: false would accumulate old values and never let ripples fade.)
       renderer.render({
         scene:  brushScene,
         camera: brushCamera,
         target: fbo,
-        clear:  false,
+        clear:  true,
       });
 
       // --- Pass 2: render the distorted colour layer to the screen ---
